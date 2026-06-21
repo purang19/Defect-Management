@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:'IBM Plex Sans Thai','IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased;background:#fff}
+  input,select,textarea,button{font-family:inherit}
+  select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239A8F88' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
+  textarea{resize:vertical}
+  ::placeholder{color:#B7ACA4}
+  @keyframes dmsToast{from{opacity:0;transform:translate(-50%,14px)}to{opacity:1;transform:translate(-50%,0)}}
+  @keyframes dmsPop{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#fff;color:#2C2724">
+
+  <!-- overlay (mobile drawer) -->
+  <div style="{{ overlayStyle }}" onClick="{{ closeDrawer }}"></div>
+
+  <!-- SIDEBAR -->
+  <aside style="{{ sidebarStyle }}">
+    <div style="padding:24px 20px 16px">
+      <div style="font-size:17px;font-weight:700;line-height:1.28;letter-spacing:-.01em">Defect Management<br>System <span style="color:#9A8F88;font-weight:600">(DMS)</span></div>
+    </div>
+
+    <div style="height:1px;background:#EFE6E0;margin:2px 20px 14px"></div>
+
+    <nav style="display:flex;flex-direction:column;gap:6px;padding:0 14px 22px">
+      <button onClick="{{ goDefect }}" style="{{ navDefect }}">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="9" x2="12" y2="15"></line><line x1="9" y1="12" x2="15" y2="12"></line></svg>
+        <span>บันทึก Defect</span>
+      </button>
+      <button onClick="{{ goPending }}" style="{{ navPending }}">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"></path><line x1="12" y1="10" x2="12" y2="14"></line><line x1="12" y1="17" x2="12" y2="17.01"></line></svg>
+        <span>รายการ Defect</span>
+      </button>
+      <button onClick="{{ goDash }}" style="{{ navDash }}">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+        <span>Dashboard</span>
+      </button>
+      
+
+      <div style="display:flex;align-items:center;gap:8px;padding:14px 13px 6px">
+        <span style="font-size:10.5px;font-weight:600;color:#B7ACA4;letter-spacing:.06em;text-transform:uppercase">ตั้งค่า / Config</span>
+        <div style="flex:1;height:1px;background:#EFE6E0"></div>
+      </div>
+      <button onClick="{{ goRooms }}" style="{{ navRooms }}">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1.5"></rect><path d="M9 8h2M9 12h2M9 16h2M14 8h1M14 12h1M14 16h1"></path></svg>
+        <span>ข้อมูลห้อง / Rooms</span>
+      </button><button onClick="{{ onReport }}" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;border:none;cursor:pointer;font-size:14.5px;font-weight:600;width:100%;text-align:left;font-family:inherit;background:transparent;color:#3A332F">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M12 18v-6"></path><path d="M9 15l3 3 3-3"></path></svg>
+        <span>Report / ดาวน์โหลด</span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- MOBILE TOP BAR -->
+  <header style="{{ topbarStyle }}">
+    <button onClick="{{ toggleDrawer }}" style="background:none;border:none;padding:6px;cursor:pointer;color:#2C2724;display:flex">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+    </button>
+    <div style="font-weight:700;font-size:15px">{{ pageTitle }}</div>
+    <div style="margin-left:auto;font-size:12px;font-weight:600;color:#EC5E3D;background:#FDEEE9;padding:4px 10px;border-radius:999px">{{ currentBuildingName }}</div>
+  </header>
+
+  <!-- MAIN -->
+  <main style="{{ mainStyle }}">
+    
+  <div style="padding:26px clamp(16px,4vw,40px) 80px;max-width:880px">
+
+      <!-- HOTEL + BUILDING SELECTOR (all pages) -->
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #F1EAE4">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:11.5px;font-weight:600;color:#9A8F88;letter-spacing:.04em;text-transform:uppercase;width:74px;flex:none">โรงแรม / Hotel</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ hotelTabs }}" as="t" hint-placeholder-count="3">
+              <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ showBuildingRow }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <span style="font-size:11.5px;font-weight:600;color:#9A8F88;letter-spacing:.04em;text-transform:uppercase;width:74px;flex:none">ตึก / Building</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <sc-for list="{{ buildingTabs }}" as="b" hint-placeholder-count="2">
+                <button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- ============ DEFECT FORM ============ -->
+      <sc-if value="{{ isDefect }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+            <h1 style="font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em">บันทึก Defect</h1>
+          </div>
+
+          <sc-if value="{{ isAllHotels }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:10px;padding:13px 16px;border:1px solid #F3CFC2;border-radius:12px;background:#FDF3EF;color:#C44A2C;font-size:13px;font-weight:500;margin-bottom:4px">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12" y2="16.01"></line></svg>
+              เลือกโรงแรมที่ด้านบนก่อนบันทึก Defect / Select a specific hotel above before recording.
+            </div>
+          </sc-if>
+
+          <div style="max-width:560px;display:flex;flex-direction:column;gap:20px">
+            <!-- building locked -->
+            <div>
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">ตึก / Building</label>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1px solid #F3CFC2;border-radius:10px;background:#FDEEE9;color:#C44A2C;font-weight:600;font-size:14px">
+                <span>{{ currentBuildingName }}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              </div>
+              
+            </div>
+
+            <!-- floor / room -->
+            <div style="display:flex;gap:14px;flex-wrap:wrap">
+              <div style="flex:1 1 180px">
+                <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">ชั้น / Floor <span style="color:#EC5E3D">*</span></label>
+                <select value="{{ form.floor }}" onChange="{{ onFloor }}" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                  <option value="">เลือกชั้น / Select floor</option>
+                  <sc-for list="{{ floorOptions }}" as="opt" hint-placeholder-count="3"><option value="{{ opt.value }}">{{ opt.label }}</option></sc-for>
+                </select>
+              </div>
+              <div style="flex:1 1 180px">
+                <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">Room <span style="color:#EC5E3D">*</span></label>
+                <select value="{{ form.room }}" onChange="{{ onRoom }}" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                  <option value="">เลือกห้อง / Select room</option>
+                  <sc-for list="{{ roomOptions }}" as="opt" hint-placeholder-count="4"><option value="{{ opt.value }}">{{ opt.label }}</option></sc-for>
+                </select>
+              </div>
+            </div>
+
+            <!-- photo -->
+            <div>
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">รูป / Photo <span style="color:#EC5E3D">*</span></label>
+              <div style="position:relative">
+                <label style="display:flex;align-items:center;justify-content:center;min-height:170px;border:1.5px solid #EFE0D8;border-radius:12px;cursor:pointer;overflow:hidden;background:#FCFAF8">
+                  <input type="file" accept="image/*" capture="environment" onChange="{{ onPhoto }}" style="display:none">
+                  <sc-if value="{{ noPhoto }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:9px;color:#A99E96">
+                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                      <span style="font-size:13.5px;font-weight:500">ถ่ายรูปหรืออัพโหลด / Take or upload photo</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ hasPhoto }}" hint-placeholder-val="{{ false }}">
+                    {{ photoEl }}
+                  </sc-if>
+                </label>
+                <sc-if value="{{ hasPhoto }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ onPhotoRemove }}" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(28,24,22,.62);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+                  </button>
+                </sc-if>
+              </div>
+              <sc-if value="{{ hasPhoto }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11.5px;color:#7BAE92;margin-top:6px;display:flex;align-items:center;gap:6px">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  {{ photoInfo }}
+                </div>
+              </sc-if>
+            </div>
+
+            <!-- description -->
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+                <label style="font-size:13px;font-weight:600">คำอธิบาย / Description <span style="color:#EC5E3D">*</span></label>
+                <button onClick="{{ onAddDescription }}" style="background:none;border:none;color:#EC5E3D;font-weight:600;font-size:12.5px;cursor:pointer;padding:0">+ เพิ่มรายการ</button>
+              </div>
+              <select value="{{ form.description }}" onChange="{{ onDescription }}" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                <option value="">เลือกหรือพิมพ์คำอธิบาย / Select description</option>
+                <sc-for list="{{ descriptionOptions }}" as="opt" hint-placeholder-count="5"><option value="{{ opt.value }}">{{ opt.label }}</option></sc-for>
+              </select>
+            </div>
+
+            <!-- responsible -->
+            <div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+                <label style="font-size:13px;font-weight:600">ผู้รับผิดชอบ / Responsible <span style="color:#EC5E3D">*</span></label>
+                <button onClick="{{ onAddResponsible }}" style="background:none;border:none;color:#EC5E3D;font-weight:600;font-size:12.5px;cursor:pointer;padding:0">+ เพิ่มรายการ</button>
+              </div>
+              <select value="{{ form.responsible }}" onChange="{{ onResponsible }}" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                <option value="">เลือกผู้รับผิดชอบ / Select responsible</option>
+                <sc-for list="{{ responsibleOptions }}" as="opt" hint-placeholder-count="5"><option value="{{ opt.value }}">{{ opt.label }}</option></sc-for>
+              </select>
+            </div>
+
+            <!-- status / priority -->
+            <div style="display:flex;gap:14px;flex-wrap:wrap">
+              <div style="flex:1 1 180px">
+                <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">สถานะ / Status</label>
+                <select value="{{ form.status }}" onChange="{{ onStatus }}" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                  <sc-for list="{{ statusOptions }}" as="opt" hint-placeholder-count="3"><option value="{{ opt.value }}">{{ opt.label }}</option></sc-for>
+                </select>
+              </div>
+              <div style="flex:1 1 180px">
+                <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">ความสำคัญ / Priority</label>
+                <select value="{{ form.priority }}" onChange="{{ onPriority }}" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                  <sc-for list="{{ priorityOptions }}" as="opt" hint-placeholder-count="3"><option value="{{ opt.value }}">{{ opt.label }}</option></sc-for>
+                </select>
+              </div>
+            </div>
+
+            <!-- note -->
+            <div>
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">หมายเหตุ / Notes</label>
+              <textarea value="{{ form.note }}" onChange="{{ onNote }}" placeholder="รายละเอียดเพิ่มเติม... / Additional details" style="width:100%;min-height:84px;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;background:#fff;font-size:14px;color:#2C2724;outline:none"></textarea>
+            </div>
+
+            <!-- actions (bottom) -->
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button onClick="{{ onCancelDefect }}" style="flex: 1; padding: 13px 18px; border-radius: 10px; border: 1px solid #E6DBD4; background: #fff; color: #6B615B; font-weight: 600; font-size: 15px; cursor: pointer; padding-left: 68px; padding-right: 68px">ยกเลิก / Cancel</button>
+              <button onClick="{{ onSaveDefect }}" style="flex: 2; padding: 13px 22px; border-radius: 10px; border: none; background: linear-gradient(135deg,#F3795B,#EC5E3D); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; box-shadow: 0 6px 15px rgba(236,94,61,.32); position: static">บันทึก / Save</button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ============ PENDING ============ -->
+      <sc-if value="{{ isPending }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <h1 style="font-size:24px;font-weight:700;margin:0 0 6px;letter-spacing:-.01em">รายการ Defect / Defect List</h1>
+          
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+            <sc-for list="{{ filterChips }}" as="chip" hint-placeholder-count="4">
+              <button onClick="{{ chip.onClick }}" style="{{ chip.style }}">{{ chip.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ pendingEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;padding:60px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
+              <div style="font-size:15px;font-weight:600;margin-bottom:4px">ไม่มีรายการ / No defects</div>
+              <div style="font-size:13px">ยังไม่มี Defect ในตัวกรองนี้</div>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <sc-for list="{{ pendingItems }}" as="d" hint-placeholder-count="3">
+              <div style="display:flex;gap:14px;border:1px solid #EFE6E0;border-radius:14px;padding:14px;background:#fff">
+                <sc-if value="{{ d.hasPhoto }}" hint-placeholder-val="{{ false }}">
+                  {{ d.photoEl }}
+                </sc-if>
+                <sc-if value="{{ d.noPhoto }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:88px;height:88px;border-radius:10px;background:#FAF4F0;display:flex;align-items:center;justify-content:center;flex:none;color:#CDBFB6">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                  </div>
+                </sc-if>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
+                    <span style="font-size:15px;font-weight:700">{{ d.description }}</span>
+                    <span style="font-size:11px;font-weight:600;color:{{ d.priorityColor }};border:1px solid {{ d.priorityColor }};padding:1px 8px;border-radius:999px">{{ d.priorityLabel }}</span>
+                  </div>
+                  <div style="font-size:13px;color:#6B615B;margin-bottom:3px">{{ d.locStr }}</div>
+                  <div style="font-size:12.5px;color:#9A8F88">ผู้รับผิดชอบ: {{ d.responsible }} · {{ d.dateStr }}</div>
+                  <sc-if value="{{ d.hasNote }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12.5px;color:#8A817C;margin-top:5px;font-style:italic">“{{ d.note }}”</div>
+                  </sc-if>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none">
+                  <button onClick="{{ d.onCycle }}" style="font-size:12px;font-weight:600;color:{{ d.statusColor }};background:{{ d.statusBg }};border:none;padding:5px 11px;border-radius:999px;cursor:pointer;white-space:nowrap">{{ d.statusLabel }}</button>
+                  <sc-if value="{{ d.hasStatusChanged }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:10.5px;color:#A99E96;text-align:right;line-height:1.3;white-space:nowrap">เปลี่ยนเมื่อ / Updated<br>{{ d.statusChangedStr }}</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ============ ROOMS MANAGEMENT ============ -->
+      <sc-if value="{{ isRooms }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+            <h1 style="font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em">ข้อมูลห้อง / Rooms</h1>
+            <sc-if value="{{ notAllHotels }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ onAddBuilding }}" style="margin-left:auto;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.28)">+ เพิ่มตึก / Building</button>
+            </sc-if>
+          </div>
+          <div style="font-size:13px;color:#9A8F88;margin-bottom:20px">จัดการตึก ชั้น และห้อง / Manage buildings, floors &amp; rooms</div>
+
+          <sc-if value="{{ isAllHotels }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;padding:54px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
+              <div style="font-size:15px;font-weight:600;margin-bottom:4px">เลือกโรงแรมก่อน / Select a hotel</div>
+              <div style="font-size:13px">เลือกโรงแรมที่ด้านบนเพื่อจัดการตึกและห้อง</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ roomsEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;padding:54px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
+              <div style="font-size:15px;font-weight:600;margin-bottom:4px">ยังไม่มีตึก / No buildings</div>
+              <div style="font-size:13px">กด “เพิ่มตึก” เพื่อเริ่มต้น</div>
+            </div>
+          </sc-if>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <sc-for list="{{ buildingsManage }}" as="b" hint-placeholder-count="2">
+              <div style="border:1px solid #EFE6E0;border-radius:14px;overflow:hidden;background:#fff">
+                <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:#FCF6F2;border-bottom:1px solid #EFE6E0">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EC5E3D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1.5"></rect><path d="M9 8h2M9 12h2M9 16h2M14 8h1M14 12h1M14 16h1"></path></svg>
+                  <span style="font-size:16px;font-weight:700">ตึก {{ b.name }}</span>
+                  <span style="font-size:12px;color:#9A8F88">{{ b.floorCountLabel }}</span>
+                  <div style="margin-left:auto;display:flex;gap:8px">
+                    <button onClick="{{ b.onAddFloor }}" style="font-size:12.5px;font-weight:600;color:#EC5E3D;background:#FDEEE9;border:none;padding:6px 11px;border-radius:8px;cursor:pointer">+ ชั้น / Floor</button>
+                    <button onClick="{{ b.onDelete }}" style="background:none;border:none;color:#C0B5AD;cursor:pointer;padding:5px;display:flex">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"></path></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div style="padding:6px 16px 14px">
+                  <sc-for list="{{ b.floors }}" as="f" hint-placeholder-count="2">
+                    <div style="padding:12px 0;border-bottom:1px solid #F4EEE9">
+                      <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+                        <span style="font-size:13.5px;font-weight:600;color:#3A332F">ชั้น {{ f.name }}</span>
+                        <span style="font-size:11.5px;color:#A99E96">{{ f.roomCountLabel }}</span>
+                        <div style="margin-left:auto;display:flex;gap:8px">
+                          <button onClick="{{ f.onAddRooms }}" style="font-size:12px;font-weight:600;color:#6B615B;background:#F4EEE9;border:none;padding:5px 10px;border-radius:7px;cursor:pointer">+ ห้อง / Rooms</button>
+                          <button onClick="{{ f.onDelete }}" style="background:none;border:none;color:#C0B5AD;cursor:pointer;padding:4px;display:flex">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"></path></svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:7px;flex-wrap:wrap">
+                        <sc-for list="{{ f.rooms }}" as="r" hint-placeholder-count="5">
+                          <span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#3A332F;background:#F7F1EC;border:1px solid #EFE6E0;padding:4px 6px 4px 11px;border-radius:8px">
+                            {{ r.label }}
+                            <button onClick="{{ r.onDelete }}" style="background:none;border:none;color:#BBAEA5;cursor:pointer;padding:0;display:flex;line-height:1">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+                            </button>
+                          </span>
+                        </sc-for>
+                        <sc-if value="{{ f.noRooms }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size:12px;color:#B7ACA4">ยังไม่มีห้อง / No rooms</span>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ b.noFloors }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size:12.5px;color:#B7ACA4;padding:10px 0">ยังไม่มีชั้น / No floors</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- ============ DASHBOARD ============ -->
+      <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <h1 style="font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em;text-align:left;display:block">Dashboard</h1>
+          <div style="font-size:13px;color:#9A8F88;margin:6px 0 20px">ภาพรวม Defect ของโรงแรมนี้ / Defect overview for this hotel</div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px">
+            <button onClick="{{ onStatTotal }}" style="text-align:left;border:1px solid #EFE6E0;border-radius:14px;padding:18px;background:#fff;cursor:pointer">
+              <div style="font-size:30px;font-weight:700;color:#2C2724">{{ statTotal }}</div>
+              <div style="font-size:12.5px;color:#9A8F88;margin-top:2px">ทั้งหมด / Total</div>
+            </button>
+            <button onClick="{{ onStatOpen }}" style="text-align:left;border:1px solid #F6D9CF;border-radius:14px;padding:18px;background:#FFF6F2;cursor:pointer">
+              <div style="font-size:30px;font-weight:700;color:#D6452A">{{ statOpen }}</div>
+              <div style="font-size:12.5px;color:#C26C53;margin-top:2px">ค้าง / Open</div>
+            </button>
+            <button onClick="{{ onStatFixed }}" style="text-align:left;border:1px solid #EEDCB4;border-radius:14px;padding:18px;background:#FCF6E8;cursor:pointer">
+              <div style="font-size:30px;font-weight:700;color:#B8821F">{{ statFixed }}</div>
+              <div style="font-size:12.5px;color:#A8813A;margin-top:2px">แก้แล้ว / Fixed</div>
+            </button>
+            <button onClick="{{ onStatVerified }}" style="text-align:left;border:1px solid #C8E6D3;border-radius:14px;padding:18px;background:#EFF8F2;cursor:pointer">
+              <div style="font-size:30px;font-weight:700;color:#2F8857">{{ statVerified }}</div>
+              <div style="font-size:12.5px;color:#4F9970;margin-top:2px">ตรวจผ่าน / Verified</div>
+            </button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+            <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                <div style="font-size:14px;font-weight:700">{{ byGroupTitle }}</div>
+                <button onClick="{{ onSortBuilding }}" style="{{ sortBuildingStyle }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"></path><path d="M3 12h8"></path><path d="M3 18h4"></path><path d="M18 8V20"></path><path d="M15 17l3 3 3-3"></path></svg>
+                  จำนวน
+                </button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:13px">
+                <sc-for list="{{ byBuilding }}" as="row" hint-placeholder-count="3">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="font-weight:600;color:#3A332F">{{ row.name }}</span><span style="color:#9A8F88">{{ row.count }}</span></div>
+                    <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden"><div style="height:100%;width:{{ row.barWidth }};background:linear-gradient(90deg,#F3795B,#EC5E3D);border-radius:99px"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                <div style="font-size:14px;font-weight:700">ระดับความสำคัญ / By priority</div>
+                <button onClick="{{ onSortPriority }}" style="{{ sortPriorityStyle }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"></path><path d="M3 12h8"></path><path d="M3 18h4"></path><path d="M18 8V20"></path><path d="M15 17l3 3 3-3"></path></svg>
+                  จำนวน
+                </button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:13px">
+                <sc-for list="{{ byPriority }}" as="row" hint-placeholder-count="3">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="font-weight:600;color:#3A332F">{{ row.label }}</span><span style="color:#9A8F88">{{ row.count }}</span></div>
+                    <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden"><div style="height:100%;width:{{ row.barWidth }};background:{{ row.color }};border-radius:99px"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff;margin-top:16px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+              <div style="font-size:14px;font-weight:700">Defect ตามหัวข้อ / By description</div>
+              <button onClick="{{ onSortDesc }}" style="{{ sortDescStyle }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"></path><path d="M3 12h8"></path><path d="M3 18h4"></path><path d="M18 8V20"></path><path d="M15 17l3 3 3-3"></path></svg>
+                จำนวน
+              </button>
+            </div>
+            <sc-if value="{{ descEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:13px;color:#B7ACA4;padding:6px 0">ยังไม่มีข้อมูล / No data yet</div>
+            </sc-if>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <sc-for list="{{ byDescription }}" as="row" hint-placeholder-count="5">
+                <div>
+                  <div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;margin-bottom:5px"><span style="font-weight:600;color:#3A332F">{{ row.label }}</span><span style="color:#9A8F88;flex:none">{{ row.count }}</span></div>
+                  <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden"><div style="height:100%;width:{{ row.barWidth }};background:linear-gradient(90deg,#7BAE92,#4F9970);border-radius:99px"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div></main>
+
+  <!-- MODAL -->
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(28,24,22,.45);display:flex;align-items:center;justify-content:center;z-index:80;padding:20px" onClick="{{ onModalCancel }}">
+      <div onClick="{{ stop }}" style="background:#fff;border-radius:16px;padding:22px 22px 20px;width:min(420px,94vw);box-shadow:0 24px 60px rgba(0,0,0,.25);animation:dmsPop .16s ease">
+        <div style="font-size:17px;font-weight:700;margin-bottom:16px">{{ modalTitle }}</div>
+        <label style="font-size:12.5px;font-weight:600;color:#6B615B;display:block;margin-bottom:6px">{{ modalLabelA }}</label>
+        <input value="{{ modalA }}" onInput="{{ onModalA }}" placeholder="{{ modalPhA }}" style="width:100%;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;color:#2C2724;outline:none;margin-bottom:14px">
+        <sc-if value="{{ modalShowB }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <label style="font-size:12.5px;font-weight:600;color:#6B615B;display:block;margin-bottom:6px">{{ modalLabelB }}</label>
+            <input value="{{ modalB }}" onInput="{{ onModalB }}" placeholder="{{ modalPhB }}" style="width:100%;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;color:#2C2724;outline:none;margin-bottom:14px">
+          </div>
+        </sc-if>
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+          <button onClick="{{ onModalCancel }}" style="padding:9px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:14px;cursor:pointer">ยกเลิก</button>
+          <button onClick="{{ onModalSave }}" style="padding:9px 22px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:14px;cursor:pointer">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- CONFIRM REPORT DOWNLOAD -->
+  <sc-if value="{{ reportConfirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(28,24,22,.45);display:flex;align-items:center;justify-content:center;z-index:85;padding:20px" onClick="{{ onReportNo }}">
+      <div onClick="{{ stop }}" style="background:#fff;border-radius:16px;padding:24px 22px 20px;width:min(380px,94vw);box-shadow:0 24px 60px rgba(0,0,0,.25);animation:dmsPop .16s ease;text-align:center">
+        <div style="width:46px;height:46px;border-radius:50%;background:#EFF8F2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#2F8857">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M8 11l4 4 4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        </div>
+        <div style="font-size:17px;font-weight:700;margin-bottom:8px">ดาวน์โหลดรายงาน? / Download Report?</div>
+        <div style="font-size:13.5px;color:#6B615B;line-height:1.5;margin-bottom:20px">ส่งออก Defect ทั้งหมดเป็นไฟล์ Excel / Export all defects to an Excel file</div>
+        <div style="display:flex;gap:10px">
+          <button onClick="{{ onReportNo }}" style="flex:1;padding:11px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:14px;cursor:pointer">No / ไม่</button>
+          <button onClick="{{ onReportYes }}" style="flex:1;padding:11px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.30)">Yes / ใช่</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- CONFIRM STATUS CHANGE -->
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(28,24,22,.45);display:flex;align-items:center;justify-content:center;z-index:85;padding:20px" onClick="{{ onConfirmNo }}">
+      <div onClick="{{ stop }}" style="background:#fff;border-radius:16px;padding:24px 22px 20px;width:min(380px,94vw);box-shadow:0 24px 60px rgba(0,0,0,.25);animation:dmsPop .16s ease;text-align:center">
+        <div style="width:46px;height:46px;border-radius:50%;background:#FDEEE9;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#EC5E3D">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.7 9.7 0 0 0-6.7 2.7L3 8"></path><path d="M3 3v5h5"></path></svg>
+        </div>
+        <div style="font-size:17px;font-weight:700;margin-bottom:8px">เปลี่ยนสถานะ? / Change status?</div>
+        <div style="font-size:13.5px;color:#6B615B;line-height:1.5;margin-bottom:20px">
+          <span style="font-weight:600;color:#9A8F88">{{ confirmFromLabel }}</span>
+          <span style="margin:0 6px;color:#C0B5AD">→</span>
+          <span style="font-weight:700;color:{{ confirmToColor }}">{{ confirmToLabel }}</span>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button onClick="{{ onConfirmNo }}" style="flex:1;padding:11px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:14px;cursor:pointer">ยกเลิก / Cancel</button>
+          <button onClick="{{ onConfirmYes }}" style="flex:1;padding:11px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.30)">ยืนยัน / Confirm</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- TOAST -->
+  <sc-if value="{{ toastOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#2C2724;color:#fff;padding:12px 22px;border-radius:12px;font-size:14px;font-weight:500;z-index:90;box-shadow:0 12px 30px rgba(0,0,0,.3);animation:dmsToast .2s ease;max-width:90vw;text-align:center">{{ toastMsg }}</div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:820}}">
+class Component extends DCLogic {
+  state = Object.assign({}, this.seed(), {
+    currentHotelId: 'sands', currentBuildingId: 'sandsA3',
+    view: 'defect', statusFilter: 'all', drawerOpen: false,
+    modal: null, modalA: '', modalB: '', confirm: null, toast: null,
+    dashSort: { building: false, priority: false, description: true },
+    viewportWidth: 1200, form: this.blankForm()
+  });
+
+  KEY = 'dms_khaolak_v3';
+  DESC_VER = 3;
+  uid() { return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); }
+  blankForm() { return { floor: '', room: '', photo: null, description: '', responsible: '', note: '', status: 'open', priority: 'medium' }; }
+
+  seed() {
+    const mk = (n, rooms) => ({ id: 'f' + Math.random().toString(36).slice(2, 7), name: n, rooms });
+    const rg = (a, b) => { const o = []; for (let i = a; i <= b; i++) o.push(String(i)); return o; };
+    const hotels = [
+      { id: 'sands', name: 'The Sands Khao Lak', buildings: [
+        { id: 'sandsA3', name: 'A3', floors: [ mk('1', ['Fitness', 'Yoga Room', 'Recreation']), mk('2', rg(2201, 2210)), mk('3', rg(2301, 2310)) ] },
+        { id: 'sandsC1', name: 'C1', floors: [ mk('1', rg(3101, 3116)), mk('2', rg(3201, 3216)), mk('3', rg(3301, 3316)) ] }
+      ] },
+      { id: 'sunclub', name: 'The Sun Club Khao Lak', buildings: [
+        { id: 'sunA1', name: 'A1', floors: [ mk('1', rg(2111, 2122)) ] }
+      ] }
+    ];
+    const now = Date.now();
+    const defects = [];
+    return {
+      hotels, defects,
+      descriptions: ['เก็บสี | Paint touch-up', 'ยาแนวไม่เต็ม | Incomplete grout', 'ประตูบิ่น | Chipped door', 'ไฟในตู้ผ้าไม่ตัด | Wardrobe light won’t turn off', 'ซิลิโคลนไม่เรียบ | Uneven silicone', 'ยาแนวไม่เรียบร้อย | Untidy grout', 'ยาแนว | Grout', 'ทาสี | Painting', 'ไฟในห้องน้ำ | Bathroom light', 'Artwork | Artwork', 'งานไฟ | Electrical work', 'พื้นปาเก้ | Parquet floor', 'ผนังประตูบานเลื่อนห้องน้ำ | Bathroom sliding door wall', 'คราบสติกเกอร์ | Sticker residue', 'ผนังห้องสีถลอก | Room wall paint scuffed', 'ยาแนวพื้นใต้โต๊ะหัวเตียง | Floor grout under bedside table', 'ผนังข้างประตูบานเลื่อนห้องนอนสีถลอก | Wall beside bedroom sliding door paint scuffed', 'ไม้ฉลุประตูบานเลื่อนห้องนอนบิ่น | Bedroom sliding door fretwork chipped', 'ไม้ฉลุประตูบานเลื่อนห้องนอนตะปูโผล่ | Bedroom sliding door fretwork nail protruding', 'ไม้ฉลุเหนือโต๊ะใต้ทีวีหัวตะปูโผล่ | Fretwork above table under TV nail head protruding', 'ผนังข้างประตูรีวิวเป็นรู | Wall beside seaview door has hole', 'สายไฟตรงประตูซีวิวหลุดไม่เรียบร้อย | Wiring at seaview door loose/untidy', 'ประตูบานเลื่อนห้องนอนสีถลอก | Bedroom sliding door paint scuffed', 'อ่างล้างหน้าตัน | Clogged washbasin', 'บานประตูทางเข้ามีรอยบิ่น | Entrance door has chip', 'ขอบตู้วางชุดกาแฟไม่เรียบ | Coffee set cabinet edge uneven', 'กระจกวางชั้นวางชุดกาแฟมีคราบสติ๊กเกอร์ | Coffee set shelf glass has sticker residue', 'ผนังห้องใต้ อาทเวิดร์สีถลอก | Room wall under artwork paint scuffed', 'ไม้ฉลุข้างทีวีสีถลอก | Fretwork beside TV paint scuffed', 'ผนังข้างประตูซีวิวสีถลอก | Wall beside seaview door paint scuffed', 'ไม้ฉลุตรงประตูบานเลื่อนห้องนอนสีถลอก | Fretwork at bedroom sliding door paint scuffed', 'วงกบประตูทางเข้าด้านในสีไม่เรียบ | Entrance door frame inside paint uneven', 'บานประตูทางเข้ามีรอยขีดข่วน | Entrance door has scratches', 'ผนังใต้ อาทเวิดร์สีถลอก | Wall under artwork paint scuffed', 'ไม้ฉลุประตูบานเลื่อนห้องนอนมีตะปูโผล่ | Bedroom sliding door fretwork nail protruding', 'มุมประตูบานเลื่อนห้องนอนมีคราบสีติด | Bedroom sliding door corner has paint stain', 'ผนังข้างประตูบานเลื่อนห้องนอนเป็นรอยขีดข่วน | Wall beside bedroom sliding door scratched', 'ผนังตรงประตูซีวิวเป็นรู | Wall at seaview door has hole', 'ซิลิโคนขอบปาเก้ตรงทางต่างระดับ | Silicone at parquet edge at level change', 'ขาเตียงนอนสีถลอก | Bed leg paint scuffed', 'พื้นปาเก้มีรอยบิ่น | Parquet floor has chip', 'ไม้ฉลุโต๊ะหัวเตียงสีถลอก | Bedside table fretwork paint scuffed', 'ผนังห้องมีรอยขีด | Room wall has scratch', 'พื้นกระเบื้องข้างกระจกกั้นห้องน้ำมีรอยบิ่น | Tile floor beside bathroom glass partition chipped', 'ซิลิโคนขอบกระเบื้องใต้โต๊ะหัวเตียง | Silicone at tile edge under bedside table', 'ผนังห้องข้างปลั๊กไฟมีรอยขีดปากกา | Room wall beside socket has pen mark', 'ฝ้าเพดานเหนืออาทเวิดร์สีถลอก | Ceiling above artwork paint scuffed', 'ผนังข้างกระจกเคาน์เตอร์อ่างล้างหน้ายังไม่ได้ยาแนว | Wall beside washbasin counter glass not yet grouted', 'ข้างกระจกยาวสีไม่เรียบ | Beside long mirror paint uneven', 'ไม้ฉลุประตูบานเลื่อนห้องนอนสีถลอก | Bedroom sliding door fretwork paint scuffed', 'ผนังห้องข้างประตูบานเลื่อนห้องนอนสีถลอก | Room wall beside bedroom sliding door paint scuffed', 'ปลั๊กไฟใต้ทีวีเป็นรู | Socket under TV has hole', 'ปลั๊กไฟข้างประตู civic ยาแนวหลุด | Socket beside seaview door grout detached', 'โฟเมก้าขอบเตียงนอนเด็กหลุด | Child bed edge formica detached', 'ขอบประตูบานเลื่อนห้องนอนสีแตก | Bedroom sliding door edge paint cracked', 'บานพับประตูทางเข้าทาสีเข้าไม่ถึงรองบานพับ | Entrance door hinge paint doesn’t reach hinge base', 'วงกบประตูทางเข้าสีถลอก | Entrance door frame paint scuffed', 'บล็อกล็อคประตูทางเข้าสีไม่เต็ม | Entrance door lock block paint incomplete', 'บานประตูทางเข้าข้างระบบคีย์การ์ดสีไม่เต็ม | Entrance door beside keycard system paint incomplete', 'ท่อดินใต้อ่างอาบน้ำตัน | Drain pipe under bathtub clogged', 'ฝาผนังในห้องมีรอยขีด | Room wall has scratch', 'โฟเมก้าเตียงนอนอ้า | Bed formica gap', 'ผนังห้องข้างประตูบานเลื่อนห้องนอนมีรอยขีดและปูนแตก | Room wall beside bedroom sliding door scratched and plaster cracked', 'ไม้ฉลุข้างทีวีมีรอยบิ่น | Fretwork beside TV chipped', 'ข้างไม้ฉลุเหนือม้าวางกระเป๋ามีรอยแตก | Beside fretwork above luggage bench cracked', 'ซิลิโคนขอบคิ้วปาเก้ข้างโต๊ะหัวเตียง | Silicone at parquet trim edge beside bedside table', 'โฟเมก้าพื้นเตียงนอนเด้ง | Bed base formica lifting', 'คิ้วบัวด้านล่าง | Lower skirting trim', 'ฝาผนังห้องมีรอยขีด | Room wall has scratch', 'เตียงนอนเด็กเป็นรูหัวน็อต | Child bed has bolt hole', 'โฟเมก้าขาเตียงนอนแตก | Bed leg formica cracked', 'ไม้บังไฟช่องหลืบมีรอยบิ่น | Cove-light wood baffle chipped', 'ประตูบานเลื่อนด้านบนมีหัวตะปูโผล่ | Sliding door top has nail head protruding', 'ฝ้าเพดานเหนือไม้ฉลุโต๊ะหัวเตียงสีถลอก | Ceiling above bedside table fretwork paint scuffed', 'กระจกกลมโต๊ะหัวเตียงมีคราบสติ๊กเกอร์ | Round mirror on bedside table has sticker residue', 'พื้นกระเบื้องข้างกระจกอ่างอาบน้ำเป็นรู | Tile floor beside bathtub glass has hole', 'อาทเวิดร์ไม้เป็นรู | Wood artwork has hole', 'บานประตูทางเข้าสีถลอก | Entrance door paint scuffed', 'ในตู้เสื้อผ้าเป็นรู | Inside wardrobe has hole', 'พื้นกระเบื้องตรงประตูทางเข้าห้องน้ำเป็นรู | Tile floor at bathroom entrance has hole', 'ยาแนวขอบกระเบื้องเคาน์เตอร์อ่างล้างหน้า | Grout at washbasin counter tile edge', 'ยาแนวพื้นกระเบื้องห้องชักโครก | Grout on toilet floor tile', 'โฟเมก้าขอบตู้วางตู้เย็นบิน | Refrigerator cabinet edge formica chipped', 'ไฟในตู้วางชุดกาแฟไม่ติด | Coffee set cabinet light not working', 'ฝ้าเพดานเหนือกระจกกั้นห้องน้ำเป็นรู | Ceiling above bathroom glass partition has hole', 'ขอบกระจกยาวสีถลอก | Long mirror edge paint scuffed', 'พนัสโต๊ะหัวเตียงใต้กระจกกลมด่าง | Bedside table surface under round mirror stained', 'ไม้ฉลุหัวเตียงนอนสีถลอก | Bed headboard fretwork paint scuffed', 'ไม้ฉลุประตูบานเลื่อนห้องนอนมีรอยด่าง | Bedroom sliding door fretwork stained', 'โฟเมก้าขอบเตียงนอนอ้า | Bed edge formica gap', 'ขอบบานประตูบานเลื่อนห้องนอนบิ่น | Bedroom sliding door edge chipped', 'ผนังห้องข้างประตูบานและห้องนอนสีถลอก | Room wall beside bedroom door paint scuffed', 'ขอบประตูบานเลื่อนห้องนอนสีถลอก | Bedroom sliding door edge paint scuffed', 'ผนังห้องข้างโซฟาเด็กสีถลอก | Room wall beside child sofa paint scuffed', 'ประตูบานเลื่อนห้องนอนไม้บิ่น | Bedroom sliding door wood chipped', 'ฝ้าเพดานตรงประตูบานเลื่อนห้องนอนสีถลอก | Ceiling at bedroom sliding door paint scuffed', 'ผนังห้องฝั่งทีวีสีถลอก | Room wall on TV side paint scuffed', 'ไม้ฉลุข้างทีวีมีรอยขีดและด่าง | Fretwork beside TV scratched and stained', 'ฝ้าเพดานเหนือทีวีสีถลอก | Ceiling above TV paint scuffed', 'วงกบประตูทางเข้าด้านนอกปูนแตก | Entrance door frame outside plaster cracked', 'ระหว่างวงกบประตูทางเข้าและตู้เสื้อผ้าเป็นร่องโว่ | Gap between entrance door frame and wardrobe', 'ในตู้เสื้อผ้ามีตะปูโผ่ล | Inside wardrobe has nail protruding', 'พื้นกระเบื้องตรงทางเข้าห้องน้ำมีตัวล็อคประตูบานเลื่อนห้องน้ำ | Bathroom entrance tile floor has sliding door lock', 'ช่องไฟบนตู้วางชุดกาแฟเป็นรู | Light slot on coffee set cabinet has hole', 'ไม้ฉลุเหนือไม้วางกระเป๋าบิน | Fretwork above luggage rack chipped', 'ผนังห้องข้างประตูบานเลื่อนห้องนอนมีรอยขีด | Room wall beside bedroom sliding door has scratch', 'ไม้ฉลุประตูบานเลื่อนห้องนอนมีรอยบิ่น | Bedroom sliding door fretwork chipped', 'พื้นปาเก้ตุงประตูบานเลื่อนห้องนอนเป็นรู | Parquet floor at bedroom sliding door bulging/has hole', 'คิ้วบัวด้านล่างตรงประตูบานเลื่อนห้องนอนเป็นร่อง | Lower skirting at bedroom sliding door has gap', 'ไม้ฉลุเหนือใต้โต๊ะทีวีหัวตะปูโผล่ | Fretwork above/under TV table nail head protruding', 'โฟเมก้าขาเตียงนอนเด็กบิน | Child bed leg formica chipped', 'ฝ้าเพดานเหนือเตียงนอนเด็กมีรอยแตก | Ceiling above child bed cracked', 'พื้นกระเบื้องข้างโต๊ะหัวเตียงยังไม่ได้ยาแนว | Tile floor beside bedside table not yet grouted', 'พื้นกระเบื้องข้างกระจกกั้นห้องน้ำสีไม่เหมือนกัน | Tile floor beside bathroom glass partition colour mismatch', 'บ๊อบนักสู้ประตูทางเข้าเป็นรู | Entrance door stopper has hole', 'บานพับประตูทางเข้าเป็นร่อง | Entrance door hinge has gap', 'บานประตูทางเข้าข้างตาแมวมีรอยบิ่น | Entrance door beside peephole chipped', 'ผนังข้างคิ้วบัวด้านล่างตรงประตูทางเข้าปูนแตก | Wall beside lower skirting at entrance door plaster cracked', 'ฝ้าเพดานมีรอยแตก | Ceiling cracked', 'ฟ้าผนังข้างไม้ฉลุเหนือม้าวางกระเป๋าสีถลอก | Wall beside fretwork above luggage bench paint scuffed', 'ข้างรูมเทอร์โมแอร์ยาแนวไม่เต็ม | Beside air-con thermostat grout incomplete', 'ผนังสีถลอก | Wall paint scuffed', 'แผ่นรองไม้ใต้เตียงนอนเปิด | Wood base board under bed lifting'],
+      responsibles: ['ก่อสร้าง | Construction', 'ช่างเฟอร์นิเจอร์ | Furniture technician', 'ช่างไฟ | Electrician', 'ช่างประปา | Plumber', 'ช่างโรงแรม | Hotel maintenance', 'งานม่าน งานเบาะ | Curtains & upholstery']
+    };
+  }
+
+  componentDidMount() {
+    try {
+      const raw = localStorage.getItem(this.KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        const descUpToDate = s.descVer === this.DESC_VER;
+        this.setState({
+          hotels: s.hotels || this.state.hotels,
+          descriptions: descUpToDate ? (s.descriptions || this.state.descriptions) : this.state.descriptions,
+          responsibles: descUpToDate ? (s.responsibles || this.state.responsibles) : this.state.responsibles,
+          defects: s.defects || this.state.defects,
+          currentHotelId: s.currentHotelId || this.state.currentHotelId,
+          currentBuildingId: s.currentBuildingId || this.state.currentBuildingId,
+          view: s.view || this.state.view
+        }, () => { if (!descUpToDate) this.persist(); });
+      } else { this.persist(); }
+    } catch (e) {}
+    this.setState({ viewportWidth: window.innerWidth });
+    this._r = () => this.setState({ viewportWidth: window.innerWidth });
+    window.addEventListener('resize', this._r);
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this._r); clearTimeout(this._t); }
+
+  persist() {
+    const s = this.state;
+    try { localStorage.setItem(this.KEY, JSON.stringify({ hotels: s.hotels, descriptions: s.descriptions, responsibles: s.responsibles, defects: s.defects, currentHotelId: s.currentHotelId, currentBuildingId: s.currentBuildingId, view: s.view, descVer: this.DESC_VER })); } catch (e) {}
+  }
+
+  currentHotel() { if (this.state.currentHotelId === 'all') return null; return this.state.hotels.find(h => h.id === this.state.currentHotelId) || null; }
+  currentBuilding() { const h = this.currentHotel(); if (!h) return null; return h.buildings.find(b => b.id === this.state.currentBuildingId) || h.buildings[0] || null; }
+
+  toast(msg) { this.setState({ toast: msg }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 2600); }
+
+  fmt(ts) { const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+
+  parseRooms(str) {
+    const out = [];
+    (str || '').split(',').forEach(part => {
+      part = part.trim(); if (!part) return;
+      const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (m) { const a = +m[1], b = +m[2], pad = m[1].length; if (b >= a && b - a < 500) for (let i = a; i <= b; i++) out.push(String(i).padStart(pad, '0')); }
+      else out.push(part);
+    });
+    return out;
+  }
+
+  setView(v) { this.setState({ view: v, drawerOpen: false }, () => this.persist()); }
+  toggleSort(key) { this.setState(s => ({ dashSort: Object.assign({}, s.dashSort, { [key]: !s.dashSort[key] }) })); }
+  setHotelId(id) {
+    if (id === 'all') { this.setState(s => ({ currentHotelId: 'all', currentBuildingId: '', form: Object.assign({}, s.form, { floor: '', room: '' }) }), () => this.persist()); return; }
+    const h = this.state.hotels.find(x => x.id === id); const b = h && h.buildings[0];
+    this.setState(s => ({ currentHotelId: id, currentBuildingId: b ? b.id : '', form: Object.assign({}, s.form, { floor: '', room: '' }) }), () => this.persist());
+  }
+  setBuilding(e) { this.setState(s => ({ currentBuildingId: e.target.value, form: Object.assign({}, s.form, { floor: '', room: '' }) }), () => this.persist()); }
+  setBuildingId(id) { this.setState(s => ({ currentBuildingId: id, form: Object.assign({}, s.form, { floor: '', room: '' }) }), () => this.persist()); }
+  setForm(k, v) { this.setState(s => ({ form: Object.assign({}, s.form, { [k]: v }) })); }
+
+  onPhoto(e) {
+    const file = e.target.files && e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280; let w = img.width, h = img.height;
+        if (w > max || h > max) { const s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, w, h);
+        const data = c.toDataURL('image/jpeg', 0.75);
+        const kb = Math.round((data.length * 0.75) / 1024);
+        this.setState(s => ({ form: Object.assign({}, s.form, { photo: data, photoKB: kb, photoDim: w + '×' + h }) }));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  saveDefect() {
+    const f = this.state.form, cb = this.currentBuilding();
+    if (!cb) { this.toast(this.state.currentHotelId === 'all' ? 'เลือกโรงแรมก่อน / Select a hotel first' : 'กรุณาเพิ่มตึกก่อน / Add a building first'); return; }
+    const miss = [];
+    if (!f.floor) miss.push('ชั้น'); if (!f.room) miss.push('ห้อง'); if (!f.photo) miss.push('รูป'); if (!f.description) miss.push('คำอธิบาย'); if (!f.responsible) miss.push('ผู้รับผิดชอบ');
+    if (miss.length) { this.toast('กรุณากรอก: ' + miss.join(', ')); return; }
+    const floor = cb.floors.find(x => x.id === f.floor);
+    const defect = { id: this.uid(), hotelId: this.state.currentHotelId, buildingId: cb.id, buildingName: cb.name, floorId: f.floor, floor: floor ? floor.name : '', room: f.room, photo: f.photo, description: f.description, responsible: f.responsible, note: f.note, status: f.status, priority: f.priority, createdAt: Date.now() };
+    this.setState(s => ({ defects: [defect, ...s.defects], form: this.blankForm() }), () => this.persist());
+    this.toast('บันทึก Defect สำเร็จ / Saved');
+  }
+
+  cycleStatus(id) { const order = ['open', 'fixed', 'verified']; this.setState(s => ({ defects: s.defects.map(d => d.id === id ? Object.assign({}, d, { status: order[(order.indexOf(d.status) + 1) % 3], statusChangedAt: Date.now() }) : d) }), () => this.persist()); }
+  askCycle(d) { const order = ['open', 'fixed', 'verified']; const next = order[(order.indexOf(d.status) + 1) % 3]; this.setState({ confirm: { id: d.id, from: d.status, to: next } }); }
+  confirmCycle() { const c = this.state.confirm; if (c) this.cycleStatus(c.id); this.setState({ confirm: null }); this.toast('เปลี่ยนสถานะแล้ว / Status updated'); }
+  deleteDefect(id) { this.setState(s => ({ defects: s.defects.filter(d => d.id !== id) }), () => this.persist()); }
+
+  // ---- rooms management ----
+  mutCurrentHotel(fn) { this.setState(s => ({ hotels: s.hotels.map(h => h.id === s.currentHotelId ? fn(h) : h) }), () => this.persist()); }
+  addBuilding(name) { if (!name.trim()) return; this.mutCurrentHotel(h => Object.assign({}, h, { buildings: [...h.buildings, { id: this.uid(), name: name.trim(), floors: [] }] })); }
+  addFloor(bid, name, roomsStr) { if (!name.trim()) return; this.mutCurrentHotel(h => Object.assign({}, h, { buildings: h.buildings.map(b => b.id === bid ? Object.assign({}, b, { floors: [...b.floors, { id: this.uid(), name: name.trim(), rooms: this.parseRooms(roomsStr) }] }) : b) })); }
+  addRooms(bid, fid, roomsStr) { const add = this.parseRooms(roomsStr); if (!add.length) return; this.mutCurrentHotel(h => Object.assign({}, h, { buildings: h.buildings.map(b => b.id === bid ? Object.assign({}, b, { floors: b.floors.map(f => f.id === fid ? Object.assign({}, f, { rooms: Array.from(new Set([...f.rooms, ...add])) }) : f) }) : b) })); }
+  deleteBuilding(id) { this.setState(s => { const hotels = s.hotels.map(h => h.id === s.currentHotelId ? Object.assign({}, h, { buildings: h.buildings.filter(b => b.id !== id) }) : h); let cb = s.currentBuildingId; if (cb === id) { const h = hotels.find(x => x.id === s.currentHotelId); cb = h && h.buildings[0] ? h.buildings[0].id : ''; } return { hotels, currentBuildingId: cb }; }, () => this.persist()); }
+  deleteFloor(bid, fid) { this.mutCurrentHotel(h => Object.assign({}, h, { buildings: h.buildings.map(b => b.id === bid ? Object.assign({}, b, { floors: b.floors.filter(f => f.id !== fid) }) : b) })); }
+  deleteRoom(bid, fid, room) { this.mutCurrentHotel(h => Object.assign({}, h, { buildings: h.buildings.map(b => b.id === bid ? Object.assign({}, b, { floors: b.floors.map(f => f.id === fid ? Object.assign({}, f, { rooms: f.rooms.filter(r => r !== room) }) : f) }) : b) })); }
+
+  exportExcel(forceAll) {
+    const st = this.state;
+    const hotelName = {}; st.hotels.forEach(h => hotelName[h.id] = h.name);
+    const isAll = forceAll || st.currentHotelId === 'all';
+    const list = isAll ? st.defects.slice() : st.defects.filter(d => d.hotelId === st.currentHotelId);
+    const sLabel = { open: 'ค้าง / Open', fixed: 'แก้แล้ว / Fixed', verified: 'ตรวจผ่าน / Verified' };
+    const pLabel = { low: 'ต่ำ / Low', medium: 'กลาง / Medium', high: 'สูง / High' };
+    const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const headers = ['โรงแรม / Hotel', 'ตึก / Building', 'ชั้น / Floor', 'ห้อง / Room', 'คำอธิบาย / Description', 'ผู้รับผิดชอบ / Responsible', 'สถานะ / Status', 'ความสำคัญ / Priority', 'หมายเหตุ / Note', 'วันที่ / Date', 'เปลี่ยนสถานะเมื่อ / Status changed'];
+    let html = '<table border="1"><thead><tr>' + headers.map(h => '<th style="background:#FCF6F2;font-weight:bold">' + esc(h) + '</th>').join('') + '</tr></thead><tbody>';
+    list.forEach(d => {
+      const cells = [hotelName[d.hotelId] || '', d.buildingName, d.floor, d.room, d.description, d.responsible, sLabel[d.status] || d.status, pLabel[d.priority] || d.priority, d.note, this.fmt(d.createdAt), d.statusChangedAt ? this.fmt(d.statusChangedAt) : ''];
+      html += '<tr>' + cells.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>';
+    });
+    html += '</tbody></table>';
+    const full = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>' + html + '</body></html>';
+    const blob = new Blob(['\ufeff' + full], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'DMS_' + (isAll ? 'AllHotels' : (this.currentHotel() ? this.currentHotel().name.replace(/\s+/g, '_') : 'export')) + '_' + new Date().toISOString().slice(0, 10) + '.xls';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    this.toast(list.length ? 'ส่งออก Excel แล้ว / Exported ' + list.length + ' รายการ' : 'ไม่มีรายการให้ส่งออก / Nothing to export');
+  }
+
+  // ---- modal ----
+  openModal(type, bid, fid) { this.setState({ modal: { type, buildingId: bid || null, floorId: fid || null }, modalA: '', modalB: '' }); }
+  closeModal() { this.setState({ modal: null }); }
+  modalSave() {
+    const m = this.state.modal; if (!m) return;
+    const a = this.state.modalA, b = this.state.modalB;
+    if (m.type === 'addBuilding') this.addBuilding(a);
+    else if (m.type === 'addFloor') this.addFloor(m.buildingId, a, b);
+    else if (m.type === 'addRooms') this.addRooms(m.buildingId, m.floorId, a);
+    else if (m.type === 'addDescription') { if (a.trim()) this.setState(s => ({ descriptions: [...s.descriptions, a.trim()], form: Object.assign({}, s.form, { description: a.trim() }) }), () => this.persist()); }
+    else if (m.type === 'addResponsible') { if (a.trim()) this.setState(s => ({ responsibles: [...s.responsibles, a.trim()], form: Object.assign({}, s.form, { responsible: a.trim() }) }), () => this.persist()); }
+    this.closeModal();
+  }
+
+  renderVals() {
+    const st = this.state;
+    const vw = st.viewportWidth || 1200;
+    const isMobile = vw < 820;
+    const drawerOpen = st.drawerOpen;
+    const SIDE_W = '262px';
+    const sidebarBase = { position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDE_W, background: '#FCF6F2', borderRight: '1px solid #EFE6E0', display: 'flex', flexDirection: 'column', zIndex: 60, overflowY: 'auto', transition: 'transform .26s ease' };
+    let sidebarStyle, mainStyle, topbarStyle, overlayStyle;
+    if (isMobile) {
+      sidebarStyle = Object.assign({}, sidebarBase, { transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)', boxShadow: drawerOpen ? '0 0 50px rgba(0,0,0,.22)' : 'none' });
+      mainStyle = { marginLeft: 0, paddingTop: '56px', minHeight: '100vh' };
+      topbarStyle = { position: 'fixed', top: 0, left: 0, right: 0, height: '56px', display: 'flex', alignItems: 'center', gap: '10px', padding: '0 14px', background: '#fff', borderBottom: '1px solid #EFE6E0', zIndex: 50 };
+      overlayStyle = { position: 'fixed', inset: 0, background: 'rgba(28,24,22,.4)', zIndex: 55, display: drawerOpen ? 'block' : 'none' };
+    } else {
+      sidebarStyle = Object.assign({}, sidebarBase, { transform: 'translateX(0)' });
+      mainStyle = { marginLeft: SIDE_W, minHeight: '100vh' };
+      topbarStyle = { display: 'none' };
+      overlayStyle = { display: 'none' };
+    }
+
+    const isAll = st.currentHotelId === 'all';
+    const hotelNameById = {}; st.hotels.forEach(h => hotelNameById[h.id] = h.name);
+    const hotel = this.currentHotel();
+    const cb = this.currentBuilding();
+    const buildingOptions = hotel ? hotel.buildings.map(b => ({ value: b.id, label: 'ตึก ' + b.name })) : [];
+    const currentBuildingName = cb ? cb.name : (isAll ? 'ทุกโรงแรม / All' : '— ยังไม่มีตึก');
+
+    const tabBase = { padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', border: '1px solid #E6DBD4', background: '#fff', color: '#6B615B' };
+    const tabActive = { padding: '8px 16px', borderRadius: '10px', cursor: 'pointer', fontSize: '13.5px', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap', border: '1px solid transparent', background: 'linear-gradient(135deg,#F3795B,#EC5E3D)', color: '#fff', boxShadow: '0 5px 13px rgba(236,94,61,.28)' };
+    const hotelTabs = [{ value: 'all', label: 'ทั้งหมด / All' }].concat(st.hotels.map(h => ({ value: h.id, label: h.name }))).map(t => ({ value: t.value, label: t.label, onClick: () => this.setHotelId(t.value), style: st.currentHotelId === t.value ? tabActive : tabBase }));
+    const buildingTabs = hotel ? hotel.buildings.map(b => ({ value: b.id, label: 'ตึก ' + b.name, onClick: () => this.setBuildingId(b.id), style: st.currentBuildingId === b.id ? tabActive : tabBase })) : [];
+
+    const navBase = { display: 'flex', alignItems: 'center', gap: '11px', padding: '11px 13px', borderRadius: '11px', border: 'none', cursor: 'pointer', fontSize: '14.5px', fontWeight: 600, width: '100%', textAlign: 'left', fontFamily: 'inherit' };
+    const navOf = v => st.view === v
+      ? Object.assign({}, navBase, { background: 'linear-gradient(135deg,#F3795B,#EC5E3D)', color: '#fff', boxShadow: '0 6px 15px rgba(236,94,61,.30)' })
+      : Object.assign({}, navBase, { background: 'transparent', color: '#3A332F' });
+
+    const titles = { defect: 'บันทึก Defect', pending: 'รายการ Defect / Defect List', rooms: 'ข้อมูลห้อง / Rooms', dashboard: 'Dashboard' };
+
+    const floorOptions = cb ? cb.floors.map(f => ({ value: f.id, label: 'ชั้น ' + f.name })) : [];
+    const roomFloor = cb ? cb.floors.find(f => f.id === st.form.floor) : null;
+    const roomOptions = roomFloor ? roomFloor.rooms.map(r => ({ value: r, label: r })) : [];
+    const descriptionOptions = st.descriptions.map(d => ({ value: d, label: d }));
+    const responsibleOptions = st.responsibles.map(r => ({ value: r, label: r }));
+    const statusOptions = [ { value: 'open', label: 'ค้าง / Open' }, { value: 'fixed', label: 'แก้แล้ว / Fixed' }, { value: 'verified', label: 'ตรวจผ่าน / Verified' } ];
+    const priorityOptions = [ { value: 'low', label: 'ต่ำ / Low' }, { value: 'medium', label: 'กลาง / Medium' }, { value: 'high', label: 'สูง / High' } ];
+
+    const statusMeta = { open: { label: 'ค้าง / Open', color: '#D6452A', bg: '#FDEEE9' }, fixed: { label: 'แก้แล้ว / Fixed', color: '#B8821F', bg: '#FBF1DC' }, verified: { label: 'ตรวจผ่าน / Verified', color: '#2F8857', bg: '#E2F2E8' } };
+    const priorityMeta = { low: { label: 'ต่ำ / Low', color: '#5E8F88' }, medium: { label: 'กลาง / Medium', color: '#B8821F' }, high: { label: 'สูง / High', color: '#D6452A' } };
+
+    const hotelDefects = isAll ? st.defects.slice() : st.defects.filter(d => d.hotelId === st.currentHotelId);
+    const sf = st.statusFilter;
+    const filtered = sf === 'all' ? hotelDefects : hotelDefects.filter(d => d.status === sf);
+    const pendingItems = filtered.map(d => { const sm = statusMeta[d.status], pm = priorityMeta[d.priority]; return {
+      id: d.id, description: d.description, responsible: d.responsible, note: d.note, hasNote: !!d.note,
+      hasPhoto: !!d.photo, noPhoto: !d.photo,
+      photoEl: d.photo ? React.createElement('img', { src: d.photo, alt: 'defect', style: { width: '88px', height: '88px', borderRadius: '10px', objectFit: 'cover', flex: 'none' } }) : null,
+      statusLabel: sm.label, statusColor: sm.color, statusBg: sm.bg,
+      priorityLabel: pm.label, priorityColor: pm.color, dateStr: this.fmt(d.createdAt),
+      hasStatusChanged: !!d.statusChangedAt, statusChangedStr: d.statusChangedAt ? this.fmt(d.statusChangedAt) : '',
+      locStr: (isAll ? hotelNameById[d.hotelId] + ' · ' : '') + 'ตึก ' + d.buildingName + ' · ชั้น ' + d.floor + ' · ห้อง ' + d.room,
+      onCycle: () => this.askCycle(d), onDelete: () => this.deleteDefect(d.id)
+    }; });
+
+    const chipBase = { padding: '7px 14px', borderRadius: '999px', cursor: 'pointer', fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' };
+    const filterChips = [ ['all', 'ทั้งหมด / All'], ['open', 'ค้าง / Open'], ['fixed', 'แก้แล้ว / Fixed'], ['verified', 'ตรวจผ่าน / Verified'] ].map(([v, l]) => ({
+      value: v, label: l, onClick: () => this.setState({ statusFilter: v }),
+      style: sf === v ? Object.assign({}, chipBase, { background: '#EC5E3D', color: '#fff', border: '1px solid transparent' }) : Object.assign({}, chipBase, { background: '#fff', color: '#6B615B', border: '1px solid #E6DBD4' })
+    }));
+
+    const buildingsManage = hotel ? hotel.buildings.map(b => ({
+      id: b.id, name: b.name, floorCountLabel: b.floors.length + ' ชั้น', noFloors: b.floors.length === 0,
+      onDelete: () => this.deleteBuilding(b.id), onAddFloor: () => this.openModal('addFloor', b.id),
+      floors: b.floors.map(f => ({
+        id: f.id, name: f.name, roomCountLabel: f.rooms.length + ' ห้อง', noRooms: f.rooms.length === 0,
+        onDelete: () => this.deleteFloor(b.id, f.id), onAddRooms: () => this.openModal('addRooms', b.id, f.id),
+        rooms: f.rooms.map(r => ({ label: r, onDelete: () => this.deleteRoom(b.id, f.id, r) }))
+      }))
+    })) : [];
+
+    const cnt = s => hotelDefects.filter(d => d.status === s).length;
+    const ds = st.dashSort || {};
+    const sortByCount = (arr, on) => on ? arr.slice().sort((a, b) => b.count - a.count) : arr;
+
+    const bbRaw = isAll
+      ? st.hotels.map(h => ({ name: h.name, count: st.defects.filter(d => d.hotelId === h.id).length }))
+      : (hotel ? hotel.buildings.map(b => ({ name: 'ตึก ' + b.name, count: hotelDefects.filter(d => d.buildingId === b.id).length })) : []);
+    const byGroupTitle = isAll ? 'Defect ตามโรงแรม / By hotel' : 'Defect ตามตึก / By building';
+    const maxB = Math.max(1, ...bbRaw.map(x => x.count));
+    const byBuilding = sortByCount(bbRaw, ds.building).map(x => Object.assign({}, x, { barWidth: Math.round(x.count / maxB * 100) + '%' }));
+    const prRaw = [ ['high', 'สูง / High', '#D6452A'], ['medium', 'กลาง / Medium', '#B8821F'], ['low', 'ต่ำ / Low', '#5E8F88'] ].map(([k, l, c]) => ({ label: l, color: c, count: hotelDefects.filter(d => d.priority === k).length }));
+    const maxP = Math.max(1, ...prRaw.map(x => x.count));
+    const byPriority = sortByCount(prRaw, ds.priority).map(x => Object.assign({}, x, { barWidth: Math.round(x.count / maxP * 100) + '%' }));
+
+    // description trend
+    const descCounts = {};
+    hotelDefects.forEach(d => { const k = d.description || '—'; descCounts[k] = (descCounts[k] || 0) + 1; });
+    const descRaw = Object.keys(descCounts).map(k => ({ label: k, count: descCounts[k] }));
+    const maxD = Math.max(1, ...descRaw.map(x => x.count));
+    const byDescription = sortByCount(descRaw, ds.description).map(x => Object.assign({}, x, { barWidth: Math.round(x.count / maxD * 100) + '%' }));
+    const descEmpty = descRaw.length === 0;
+
+    const sortBtn = (active) => ({ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 600, padding: '5px 10px', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', border: active ? '1px solid transparent' : '1px solid #E6DBD4', background: active ? '#EC5E3D' : '#fff', color: active ? '#fff' : '#6B615B' });
+
+    const goPending = (s) => () => { this.setState({ view: 'pending', statusFilter: s, drawerOpen: false }, () => this.persist()); };
+
+    const m = st.modal;
+    let modalTitle = '', modalLabelA = '', modalPhA = '', modalShowB = false, modalLabelB = '', modalPhB = '';
+    if (m) {
+      if (m.type === 'addBuilding') { modalTitle = 'เพิ่มตึก / Add Building'; modalLabelA = 'ชื่อตึก / Building name'; modalPhA = 'เช่น A4'; }
+      else if (m.type === 'addFloor') { modalTitle = 'เพิ่มชั้น / Add Floor'; modalLabelA = 'ชื่อชั้น / Floor name'; modalPhA = 'เช่น 4'; modalShowB = true; modalLabelB = 'เลขห้อง (ไม่บังคับ) / Rooms (optional)'; modalPhB = 'เช่น 401-410 หรือ 401,402'; }
+      else if (m.type === 'addRooms') { modalTitle = 'เพิ่มห้อง / Add Rooms'; modalLabelA = 'เลขห้อง / Room numbers'; modalPhA = 'เช่น 401-410 หรือ 401,402'; }
+      else if (m.type === 'addDescription') { modalTitle = 'เพิ่มคำอธิบาย / Add Description'; modalLabelA = 'คำอธิบาย / Description'; modalPhA = 'พิมพ์คำอธิบาย...'; }
+      else if (m.type === 'addResponsible') { modalTitle = 'เพิ่มผู้รับผิดชอบ / Add Responsible'; modalLabelA = 'ชื่อ / Name'; modalPhA = 'พิมพ์ชื่อ...'; }
+    }
+
+    return {
+      sidebarStyle, mainStyle, topbarStyle, overlayStyle,
+      pageTitle: titles[st.view] || '', currentBuildingName,
+      toggleDrawer: () => this.setState({ drawerOpen: !st.drawerOpen }),
+      closeDrawer: () => this.setState({ drawerOpen: false }),
+      stop: (e) => e.stopPropagation(),
+
+      hotelTabs, buildingTabs, showBuildingRow: !isAll && !!hotel && hotel.buildings.length > 0,
+      isAllHotels: isAll, notAllHotels: !isAll,
+      buildingOptions, currentHotelId: st.currentHotelId, currentBuildingId: st.currentBuildingId,
+      onBuilding: e => this.setBuilding(e),
+
+      navDefect: navOf('defect'), navPending: navOf('pending'), navRooms: navOf('rooms'), navDash: navOf('dashboard'),
+      goDefect: () => this.setView('defect'), goPending: () => this.setView('pending'), goRooms: () => this.setView('rooms'), goDash: () => this.setView('dashboard'),
+      isDefect: st.view === 'defect', isPending: st.view === 'pending', isRooms: st.view === 'rooms', isDashboard: st.view === 'dashboard',
+
+      form: st.form,
+      floorOptions, roomOptions, descriptionOptions, responsibleOptions, statusOptions, priorityOptions,
+      onFloor: e => this.setState(s => ({ form: Object.assign({}, s.form, { floor: e.target.value, room: '' }) })),
+      onRoom: e => this.setForm('room', e.target.value),
+      onPhoto: e => this.onPhoto(e),
+      onPhotoRemove: e => { e.preventDefault(); e.stopPropagation(); this.setForm('photo', null); },
+      onDescription: e => this.setForm('description', e.target.value),
+      onResponsible: e => this.setForm('responsible', e.target.value),
+      onNote: e => this.setForm('note', e.target.value),
+      onStatus: e => this.setForm('status', e.target.value),
+      onPriority: e => this.setForm('priority', e.target.value),
+      hasPhoto: !!st.form.photo, noPhoto: !st.form.photo,
+      photoEl: st.form.photo ? React.createElement('img', { src: st.form.photo, alt: 'defect', style: { width: '100%', height: '230px', objectFit: 'cover' } }) : null,
+      photoInfo: st.form.photo ? ('ลดขนาดแล้ว / Optimized · ' + (st.form.photoDim || '') + ' · ~' + (st.form.photoKB || 0) + ' KB') : '',
+      onAddDescription: () => this.openModal('addDescription'), onAddResponsible: () => this.openModal('addResponsible'),
+      onSaveDefect: () => this.saveDefect(), onCancelDefect: () => { this.setState({ form: this.blankForm() }); this.toast('ล้างฟอร์มแล้ว / Form cleared'); },
+
+      filterChips, pendingItems, pendingEmpty: filtered.length === 0,
+      onExport: () => this.exportExcel(),
+      onReport: () => { this.setState({ reportConfirm: true }); },
+      reportConfirmOpen: !!st.reportConfirm,
+      onReportYes: () => { this.setState({ reportConfirm: false }); this.exportExcel(true); },
+      onReportNo: () => this.setState({ reportConfirm: false }),
+
+      buildingsManage, roomsEmpty: !isAll && (!hotel || hotel.buildings.length === 0),
+      onAddBuilding: () => this.openModal('addBuilding'),
+
+      statTotal: hotelDefects.length, statOpen: cnt('open'), statFixed: cnt('fixed'), statVerified: cnt('verified'),
+      byBuilding, byPriority, byGroupTitle, byDescription, descEmpty,
+      sortBuildingStyle: sortBtn(ds.building), onSortBuilding: () => this.toggleSort('building'),
+      sortPriorityStyle: sortBtn(ds.priority), onSortPriority: () => this.toggleSort('priority'),
+      sortDescStyle: sortBtn(ds.description), onSortDesc: () => this.toggleSort('description'),
+      onStatTotal: goPending('all'), onStatOpen: goPending('open'), onStatFixed: goPending('fixed'), onStatVerified: goPending('verified'),
+
+      modalOpen: !!m, modalTitle, modalLabelA, modalPhA, modalShowB, modalLabelB, modalPhB,
+      modalA: st.modalA, modalB: st.modalB,
+      onModalA: e => this.setState({ modalA: e.target.value }), onModalB: e => this.setState({ modalB: e.target.value }),
+      onModalSave: () => this.modalSave(), onModalCancel: () => this.closeModal(),
+
+      confirmOpen: !!st.confirm,
+      confirmFromLabel: st.confirm ? statusMeta[st.confirm.from].label : '',
+      confirmToLabel: st.confirm ? statusMeta[st.confirm.to].label : '',
+      confirmToColor: st.confirm ? statusMeta[st.confirm.to].color : '#2C2724',
+      onConfirmYes: () => this.confirmCycle(), onConfirmNo: () => this.setState({ confirm: null }),
+
+      toastOpen: !!st.toast, toastMsg: st.toast || ''
+    };
+  }
+}
+</script>
+</body>
+</html>
