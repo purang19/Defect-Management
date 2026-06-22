@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="./support.js"></script>
 </head>
 <body>
@@ -527,6 +529,7 @@ class Component extends DCLogic {
 
   KEY = 'dms_khaolak_v3';
   DESC_VER = 3;
+  ZITE_VER = 1;
   uid() { return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3); }
   blankForm() { return { floor: '', room: '', photo: null, description: '', responsible: '', note: '', status: 'open', priority: 'medium' }; }
 
@@ -552,11 +555,13 @@ class Component extends DCLogic {
   }
 
   componentDidMount() {
+    let needsZite = true;
     try {
       const raw = localStorage.getItem(this.KEY);
       if (raw) {
         const s = JSON.parse(raw);
         const descUpToDate = s.descVer === this.DESC_VER;
+        needsZite = s.ziteVer !== this.ZITE_VER;
         this.setState({
           hotels: s.hotels || this.state.hotels,
           descriptions: descUpToDate ? (s.descriptions || this.state.descriptions) : this.state.descriptions,
@@ -565,18 +570,42 @@ class Component extends DCLogic {
           currentHotelId: s.currentHotelId || this.state.currentHotelId,
           currentBuildingId: s.currentBuildingId || this.state.currentBuildingId,
           view: s.view || this.state.view
-        }, () => { if (!descUpToDate) this.persist(); });
-      } else { this.persist(); }
-    } catch (e) {}
+        }, () => {
+          if (!descUpToDate) this.persist();
+          if (needsZite) this.importZite();
+        });
+      } else {
+        this.persist();
+        this.importZite();
+      }
+    } catch (e) {
+      this.persist();
+      this.importZite();
+    }
     this.setState({ viewportWidth: window.innerWidth });
     this._r = () => this.setState({ viewportWidth: window.innerWidth });
     window.addEventListener('resize', this._r);
   }
   componentWillUnmount() { window.removeEventListener('resize', this._r); clearTimeout(this._t); }
 
+  importZite() {
+    fetch('./zite_defects.json').then(r => r.json()).then(ziteData => {
+      const catalog = this.state.descriptions;
+      const withIds = ziteData.map(d => {
+        const norm = catalog.find(c => c === d.description || c.startsWith(d.description + ' | ')) || d.description;
+        return Object.assign({}, d, { id: 'z' + d.createdAt.toString(36), description: norm });
+      });
+      this.setState(s => {
+        const existing = new Set(s.defects.map(x => x.id));
+        const toAdd = withIds.filter(d => !existing.has(d.id));
+        return { defects: [...s.defects, ...toAdd] };
+      }, () => this.persist());
+    }).catch(() => {});
+  }
+
   persist() {
     const s = this.state;
-    try { localStorage.setItem(this.KEY, JSON.stringify({ hotels: s.hotels, descriptions: s.descriptions, responsibles: s.responsibles, defects: s.defects, currentHotelId: s.currentHotelId, currentBuildingId: s.currentBuildingId, view: s.view, descVer: this.DESC_VER })); } catch (e) {}
+    try { localStorage.setItem(this.KEY, JSON.stringify({ hotels: s.hotels, descriptions: s.descriptions, responsibles: s.responsibles, defects: s.defects, currentHotelId: s.currentHotelId, currentBuildingId: s.currentBuildingId, view: s.view, descVer: this.DESC_VER, ziteVer: this.ZITE_VER })); } catch (e) {}
   }
 
   currentHotel() { if (this.state.currentHotelId === 'all') return null; return this.state.hotels.find(h => h.id === this.state.currentHotelId) || null; }
