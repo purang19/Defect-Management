@@ -34,14 +34,19 @@ bundled hotels/rooms config and the 132 imported defects (idempotent — runs on
 
 ## 3. Deploy to GitHub Pages
 
-1. Create a **public** GitHub repo and push this folder to `main`.
-2. In the repo: **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-3. The included workflow ([`.github/workflows/pages.yml`](.github/workflows/pages.yml))
-   publishes `project/` on every push. The live URL appears under **Settings → Pages**
-   (and in the Actions run) as `https://<user>.github.io/<repo>/`.
+The repo's **`docs/`** folder is the deployed copy of the app (the same runtime
+files as `project/`).
 
-Open that URL → you should see the login screen → sign in → defects load. Open it on a
-second device/account to confirm shared, real-time data.
+1. In the repo: **Settings → Pages → Build and deployment → Source: Deploy from a
+   branch → Branch: `main` / folder: `/docs` → Save.**
+2. Wait ~1 minute; the live URL appears at the top of the Pages settings, e.g.
+   `https://purang19.github.io/Defect-Management/`.
+
+Open that URL → login screen → sign in → defects load. Open it on a second
+device/account to confirm shared, real-time data.
+
+> To update Supabase keys for the live site, edit **`docs/config.js`**.
+> If you change the app, copy the runtime files from `project/` into `docs/`.
 
 ---
 
