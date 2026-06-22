@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DMS – Defect Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="./vue.global.prod.js"></script>
+<script src="./supabase.js"></script>
+<script src="./config.js"></script>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{font-family:'IBM Plex Sans Thai','IBM Plex Sans',sans-serif;-webkit-font-smoothing:antialiased;background:#fff;color:#2C2724}
+input,select,textarea,button{font-family:inherit}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239A8F88' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 12px center}
+textarea{resize:vertical}
+::placeholder{color:#B7ACA4}
+@keyframes toast-in{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes pop-in{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== Auth gate (only when Supabase is configured) ===== -->
+  <div v-if="cloud && !authReady"
+    style="position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:#fff;color:#9A8F88;font-size:14px;font-weight:600">
+    กำลังเชื่อมต่อ / Connecting…
+  </div>
+  <div v-if="cloud && authReady && !session"
+    style="position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:#FAF6F3;padding:20px">
+    <form @submit.prevent="signIn"
+      style="width:100%;max-width:380px;background:#fff;border:1px solid #EFE6E0;border-radius:18px;padding:30px 28px;box-shadow:0 18px 50px rgba(44,36,34,.10);animation:pop-in .2s ease">
+      <div style="font-size:19px;font-weight:700;letter-spacing:-.01em">Defect Management System</div>
+      <div style="font-size:13px;color:#9A8F88;font-weight:500;margin:5px 0 22px">เข้าสู่ระบบ / Sign in to continue</div>
+      <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:6px">อีเมล / Email</label>
+      <input v-model="authEmail" type="email" autocomplete="username" required
+        style="width:100%;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;outline:none;margin-bottom:14px">
+      <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:6px">รหัสผ่าน / Password</label>
+      <input v-model="authPassword" type="password" autocomplete="current-password" required
+        style="width:100%;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;outline:none;margin-bottom:18px">
+      <div v-if="authError" style="font-size:12.5px;color:#C44A2C;font-weight:500;margin-bottom:14px">{{ authError }}</div>
+      <button type="submit" :disabled="authBusy"
+        style="width:100%;padding:12px;border:none;border-radius:10px;background:#EC5E3D;color:#fff;font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;opacity:1"
+        :style="{opacity: authBusy ? .6 : 1}">
+        {{ authBusy ? '…' : 'เข้าสู่ระบบ / Sign in' }}
+      </button>
+    </form>
+  </div>
+
+  <!-- Mobile overlay -->
+  <div v-if="isMobile && drawerOpen" @click="drawerOpen=false"
+    style="position:fixed;inset:0;background:rgba(28,24,22,.4);z-index:55"></div>
+
+  <!-- Sidebar -->
+  <aside :style="sidebarStyle">
+    <div style="padding:24px 20px 16px">
+      <div style="font-size:17px;font-weight:700;line-height:1.28;letter-spacing:-.01em">
+        Defect Management<br>System <span style="color:#9A8F88;font-weight:600">(DMS)</span>
+      </div>
+    </div>
+    <div style="height:1px;background:#EFE6E0;margin:2px 20px 14px"></div>
+    <nav style="display:flex;flex-direction:column;gap:6px;padding:0 14px 22px">
+      <button @click="setView('defect')" :style="navStyle('defect')">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="9" x2="12" y2="15"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+        <span>บันทึก Defect</span>
+      </button>
+      <button @click="setView('pending')" :style="navStyle('pending')">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>
+        <span>รายการ Defect</span>
+      </button>
+      <button @click="setView('dashboard')" :style="navStyle('dashboard')">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span>Dashboard</span>
+      </button>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:14px 13px 6px">
+        <span style="font-size:10.5px;font-weight:600;color:#B7ACA4;letter-spacing:.06em;text-transform:uppercase">ตั้งค่า / Config</span>
+        <div style="flex:1;height:1px;background:#EFE6E0"></div>
+      </div>
+      <button @click="setView('rooms')" :style="navStyle('rooms')">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h2M9 12h2M9 16h2M14 8h1M14 12h1M14 16h1"/></svg>
+        <span>ข้อมูลห้อง / Rooms</span>
+      </button>
+      <button @click="reportConfirm=true" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;border:none;cursor:pointer;font-size:14.5px;font-weight:600;width:100%;text-align:left;font-family:inherit;background:transparent;color:#3A332F">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/></svg>
+        <span>Report / ดาวน์โหลด</span>
+      </button>
+
+      <button v-if="cloud && session" @click="signOut" style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;border:none;cursor:pointer;font-size:13px;font-weight:600;width:100%;text-align:left;font-family:inherit;background:transparent;color:#9A8F88;margin-top:10px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>ออกจากระบบ / Sign out<br><span style="font-weight:500;font-size:11px;color:#B7ACA4">{{ session && session.user ? session.user.email : '' }}</span></span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- Mobile top bar -->
+  <header v-if="isMobile" style="position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;gap:10px;padding:0 14px;background:#fff;border-bottom:1px solid #EFE6E0;z-index:50">
+    <button @click="drawerOpen=!drawerOpen" style="background:none;border:none;padding:6px;cursor:pointer;color:#2C2724;display:flex">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div style="font-weight:700;font-size:15px">{{ pageTitle }}</div>
+    <div style="margin-left:auto;font-size:12px;font-weight:600;color:#EC5E3D;background:#FDEEE9;padding:4px 10px;border-radius:999px">{{ currentBuildingName }}</div>
+  </header>
+
+  <!-- Main -->
+  <main :style="mainStyle">
+    <div style="padding:26px clamp(16px,4vw,40px) 80px;max-width:880px">
+
+      <!-- Hotel + Building selector -->
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #F1EAE4">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:11.5px;font-weight:600;color:#9A8F88;letter-spacing:.04em;text-transform:uppercase;width:74px;flex:none">โรงแรม / Hotel</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button @click="setHotelId('all')" :style="tabStyle(currentHotelId==='all')">ทั้งหมด / All</button>
+            <button v-for="h in hotels" :key="h.id" @click="setHotelId(h.id)" :style="tabStyle(currentHotelId===h.id)">{{ h.name }}</button>
+          </div>
+        </div>
+        <div v-if="showBuildingRow" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-size:11.5px;font-weight:600;color:#9A8F88;letter-spacing:.04em;text-transform:uppercase;width:74px;flex:none">ตึก / Building</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button v-for="b in currentHotel.buildings" :key="b.id" @click="setBuildingId(b.id)" :style="tabStyle(currentBuildingId===b.id)">ตึก {{ b.name }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DEFECT FORM ===== -->
+      <section v-if="view==='defect'">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px">
+          <h1 style="font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em">บันทึก Defect</h1>
+        </div>
+
+        <div v-if="isAll" style="display:flex;align-items:center;gap:10px;padding:13px 16px;border:1px solid #F3CFC2;border-radius:12px;background:#FDF3EF;color:#C44A2C;font-size:13px;font-weight:500;margin-bottom:16px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16.01"/></svg>
+          เลือกโรงแรมที่ด้านบนก่อนบันทึก Defect / Select a specific hotel above before recording.
+        </div>
+
+        <div style="max-width:560px;display:flex;flex-direction:column;gap:20px">
+          <!-- Building locked -->
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">ตึก / Building</label>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1px solid #F3CFC2;border-radius:10px;background:#FDEEE9;color:#C44A2C;font-weight:600;font-size:14px">
+              <span>{{ currentBuildingName }}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+            </div>
+          </div>
+
+          <!-- Floor + Room -->
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div style="flex:1 1 180px">
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">ชั้น / Floor <span style="color:#EC5E3D">*</span></label>
+              <select v-model="form.floor" @change="form.room=''" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                <option value="">เลือกชั้น / Select floor</option>
+                <option v-for="f in floorOptions" :key="f.id" :value="f.id">{{ f.label }}</option>
+              </select>
+            </div>
+            <div style="flex:1 1 180px">
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">Room <span style="color:#EC5E3D">*</span></label>
+              <select v-model="form.room" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                <option value="">เลือกห้อง / Select room</option>
+                <option v-for="r in roomOptions" :key="r" :value="r">{{ r }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Photo -->
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">รูป / Photo <span style="color:#EC5E3D">*</span></label>
+            <div style="position:relative">
+              <label style="display:flex;align-items:center;justify-content:center;min-height:170px;border:1.5px solid #EFE0D8;border-radius:12px;cursor:pointer;overflow:hidden;background:#FCFAF8">
+                <input type="file" accept="image/*" capture="environment" @change="onPhoto" style="display:none">
+                <div v-if="!form.photo" style="display:flex;flex-direction:column;align-items:center;gap:9px;color:#A99E96">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <span style="font-size:13.5px;font-weight:500">ถ่ายรูปหรืออัพโหลด / Take or upload photo</span>
+                </div>
+                <img v-if="form.photo" :src="form.photo" alt="defect" style="width:100%;height:230px;object-fit:cover">
+              </label>
+              <button v-if="form.photo" @click.prevent.stop="form.photo=null" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(28,24,22,.62);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+              </button>
+            </div>
+            <div v-if="form.photo" style="font-size:11.5px;color:#7BAE92;margin-top:6px;display:flex;align-items:center;gap:6px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              ลดขนาดแล้ว / Optimized · {{ form.photoDim }} · ~{{ form.photoKB }} KB
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+              <label style="font-size:13px;font-weight:600">คำอธิบาย / Description <span style="color:#EC5E3D">*</span></label>
+              <button @click="openModal('addDescription')" style="background:none;border:none;color:#EC5E3D;font-weight:600;font-size:12.5px;cursor:pointer;padding:0">+ เพิ่มรายการ</button>
+            </div>
+            <select v-model="form.description" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+              <option value="">เลือกหรือพิมพ์คำอธิบาย / Select description</option>
+              <option v-for="d in descriptions" :key="d" :value="d">{{ d }}</option>
+            </select>
+          </div>
+
+          <!-- Responsible -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+              <label style="font-size:13px;font-weight:600">ผู้รับผิดชอบ / Responsible <span style="color:#EC5E3D">*</span></label>
+              <button @click="openModal('addResponsible')" style="background:none;border:none;color:#EC5E3D;font-weight:600;font-size:12.5px;cursor:pointer;padding:0">+ เพิ่มรายการ</button>
+            </div>
+            <select v-model="form.responsible" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+              <option value="">เลือกผู้รับผิดชอบ / Select responsible</option>
+              <option v-for="r in responsibles" :key="r" :value="r">{{ r }}</option>
+            </select>
+          </div>
+
+          <!-- Status + Priority -->
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div style="flex:1 1 180px">
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">สถานะ / Status</label>
+              <select v-model="form.status" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                <option value="open">ค้าง / Open</option>
+                <option value="fixed">แก้แล้ว / Fixed</option>
+                <option value="verified">ตรวจผ่าน / Verified</option>
+              </select>
+            </div>
+            <div style="flex:1 1 180px">
+              <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">ความสำคัญ / Priority</label>
+              <select v-model="form.priority" style="width:100%;padding:11px 32px 11px 13px;border:1px solid #E6DBD4;border-radius:10px;background-color:#fff;font-size:14px;color:#2C2724;outline:none;cursor:pointer">
+                <option value="low">ต่ำ / Low</option>
+                <option value="medium">กลาง / Medium</option>
+                <option value="high">สูง / High</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div>
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:7px">หมายเหตุ / Notes</label>
+            <textarea v-model="form.note" placeholder="รายละเอียดเพิ่มเติม... / Additional details" style="width:100%;min-height:84px;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;background:#fff;font-size:14px;color:#2C2724;outline:none"></textarea>
+          </div>
+
+          <!-- Actions -->
+          <div style="display:flex;gap:10px;margin-top:4px">
+            <button @click="cancelDefect" style="flex:1;padding:13px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:15px;cursor:pointer">ยกเลิก / Cancel</button>
+            <button @click="saveDefect" style="flex:2;padding:13px 22px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:15px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.32)">บันทึก / Save</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== DEFECT LIST ===== -->
+      <section v-if="view==='pending'">
+        <h1 style="font-size:24px;font-weight:700;margin:0 0 16px;letter-spacing:-.01em">รายการ Defect / Defect List</h1>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+          <button v-for="chip in filterChips" :key="chip.value" @click="statusFilter=chip.value" :style="chip.style">{{ chip.label }}</button>
+        </div>
+
+        <div v-if="filteredDefects.length===0" style="text-align:center;padding:60px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px">ไม่มีรายการ / No defects</div>
+          <div style="font-size:13px">ยังไม่มี Defect ในตัวกรองนี้</div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div v-for="d in filteredDefects" :key="d.id" style="display:flex;gap:14px;border:1px solid #EFE6E0;border-radius:14px;padding:14px;background:#fff">
+            <img v-if="d.photo" :src="d.photo" alt="defect" style="width:88px;height:88px;border-radius:10px;object-fit:cover;flex:none">
+            <div v-else style="width:88px;height:88px;border-radius:10px;background:#FAF4F0;display:flex;align-items:center;justify-content:center;flex:none;color:#CDBFB6">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
+                <span style="font-size:15px;font-weight:700">{{ d.description }}</span>
+                <span :style="priorityBadge(d.priority)">{{ priorityLabel(d.priority) }}</span>
+              </div>
+              <div style="font-size:13px;color:#6B615B;margin-bottom:3px">{{ defectLocStr(d) }}</div>
+              <div style="font-size:12.5px;color:#9A8F88">ผู้รับผิดชอบ: {{ d.responsible }} · {{ fmt(d.createdAt) }}</div>
+              <div v-if="d.note" style="font-size:12.5px;color:#8A817C;margin-top:5px;font-style:italic">"{{ d.note }}"</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none">
+              <button @click="askCycle(d)" :style="statusBtn(d.status)">{{ statusLabel(d.status) }}</button>
+              <div v-if="d.statusChangedAt" style="font-size:10.5px;color:#A99E96;text-align:right;line-height:1.3;white-space:nowrap">เปลี่ยนเมื่อ / Updated<br>{{ fmt(d.statusChangedAt) }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== ROOMS ===== -->
+      <section v-if="view==='rooms'">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+          <h1 style="font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em">ข้อมูลห้อง / Rooms</h1>
+          <button v-if="!isAll" @click="openModal('addBuilding')" style="margin-left:auto;padding:9px 16px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:13.5px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.28)">+ เพิ่มตึก / Building</button>
+        </div>
+        <div style="font-size:13px;color:#9A8F88;margin-bottom:20px">จัดการตึก ชั้น และห้อง / Manage buildings, floors &amp; rooms</div>
+
+        <div v-if="isAll" style="text-align:center;padding:54px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px">เลือกโรงแรมก่อน / Select a hotel</div>
+          <div style="font-size:13px">เลือกโรงแรมที่ด้านบนเพื่อจัดการตึกและห้อง</div>
+        </div>
+        <div v-else-if="!currentHotel || currentHotel.buildings.length===0" style="text-align:center;padding:54px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px">ยังไม่มีตึก / No buildings</div>
+          <div style="font-size:13px">กด "เพิ่มตึก" เพื่อเริ่มต้น</div>
+        </div>
+
+        <div v-else style="display:flex;flex-direction:column;gap:16px">
+          <div v-for="b in currentHotel.buildings" :key="b.id" style="border:1px solid #EFE6E0;border-radius:14px;overflow:hidden;background:#fff">
+            <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:#FCF6F2;border-bottom:1px solid #EFE6E0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EC5E3D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 8h2M9 12h2M9 16h2M14 8h1M14 12h1M14 16h1"/></svg>
+              <span style="font-size:16px;font-weight:700">ตึก {{ b.name }}</span>
+              <span style="font-size:12px;color:#9A8F88">{{ b.floors.length }} ชั้น</span>
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <button @click="openModal('addFloor',b.id)" style="font-size:12.5px;font-weight:600;color:#EC5E3D;background:#FDEEE9;border:none;padding:6px 11px;border-radius:8px;cursor:pointer">+ ชั้น / Floor</button>
+                <button @click="deleteBuilding(b.id)" style="background:none;border:none;color:#C0B5AD;cursor:pointer;padding:5px;display:flex">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+                </button>
+              </div>
+            </div>
+            <div style="padding:6px 16px 14px">
+              <div v-for="f in b.floors" :key="f.id" style="padding:12px 0;border-bottom:1px solid #F4EEE9">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+                  <span style="font-size:13.5px;font-weight:600;color:#3A332F">ชั้น {{ f.name }}</span>
+                  <span style="font-size:11.5px;color:#A99E96">{{ f.rooms.length }} ห้อง</span>
+                  <div style="margin-left:auto;display:flex;gap:8px">
+                    <button @click="openModal('addRooms',b.id,f.id)" style="font-size:12px;font-weight:600;color:#6B615B;background:#F4EEE9;border:none;padding:5px 10px;border-radius:7px;cursor:pointer">+ ห้อง / Rooms</button>
+                    <button @click="deleteFloor(b.id,f.id)" style="background:none;border:none;color:#C0B5AD;cursor:pointer;padding:4px;display:flex">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <span v-for="r in f.rooms" :key="r" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#3A332F;background:#F7F1EC;border:1px solid #EFE6E0;padding:4px 6px 4px 11px;border-radius:8px">
+                    {{ r }}
+                    <button @click="deleteRoom(b.id,f.id,r)" style="background:none;border:none;color:#BBAEA5;cursor:pointer;padding:0;display:flex;line-height:1">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                    </button>
+                  </span>
+                  <span v-if="f.rooms.length===0" style="font-size:12px;color:#B7ACA4">ยังไม่มีห้อง / No rooms</span>
+                </div>
+              </div>
+              <div v-if="b.floors.length===0" style="font-size:12.5px;color:#B7ACA4;padding:10px 0">ยังไม่มีชั้น / No floors</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== DASHBOARD ===== -->
+      <section v-if="view==='dashboard'">
+        <h1 style="font-size:24px;font-weight:700;margin:0;letter-spacing:-.01em">Dashboard</h1>
+        <div style="font-size:13px;color:#9A8F88;margin:6px 0 20px">ภาพรวม Defect / Defect overview</div>
+
+        <!-- Stat cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:24px">
+          <button @click="goStat('all')" style="text-align:left;border:1px solid #EFE6E0;border-radius:14px;padding:18px;background:#fff;cursor:pointer">
+            <div style="font-size:30px;font-weight:700;color:#2C2724">{{ statTotal }}</div>
+            <div style="font-size:12.5px;color:#9A8F88;margin-top:2px">ทั้งหมด / Total</div>
+          </button>
+          <button @click="goStat('open')" style="text-align:left;border:1px solid #F6D9CF;border-radius:14px;padding:18px;background:#FFF6F2;cursor:pointer">
+            <div style="font-size:30px;font-weight:700;color:#D6452A">{{ statOpen }}</div>
+            <div style="font-size:12.5px;color:#C26C53;margin-top:2px">ค้าง / Open</div>
+          </button>
+          <button @click="goStat('fixed')" style="text-align:left;border:1px solid #EEDCB4;border-radius:14px;padding:18px;background:#FCF6E8;cursor:pointer">
+            <div style="font-size:30px;font-weight:700;color:#B8821F">{{ statFixed }}</div>
+            <div style="font-size:12.5px;color:#A8813A;margin-top:2px">แก้แล้ว / Fixed</div>
+          </button>
+          <button @click="goStat('verified')" style="text-align:left;border:1px solid #C8E6D3;border-radius:14px;padding:18px;background:#EFF8F2;cursor:pointer">
+            <div style="font-size:30px;font-weight:700;color:#2F8857">{{ statVerified }}</div>
+            <div style="font-size:12.5px;color:#4F9970;margin-top:2px">ตรวจผ่าน / Verified</div>
+          </button>
+        </div>
+
+        <!-- By building + By priority -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+          <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+              <div style="font-size:14px;font-weight:700">{{ byGroupTitle }}</div>
+              <button @click="dashSort.building=!dashSort.building" :style="sortBtnStyle(dashSort.building)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"/><path d="M3 12h8"/><path d="M3 18h4"/><path d="M18 8V20"/><path d="M15 17l3 3 3-3"/></svg>
+                จำนวน
+              </button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <div v-for="row in byBuilding" :key="row.name">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+                  <span style="font-weight:600;color:#3A332F">{{ row.name }}</span>
+                  <span style="color:#9A8F88">{{ row.count }}</span>
+                </div>
+                <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden">
+                  <div :style="{height:'100%',width:row.pct+'%',background:'linear-gradient(90deg,#F3795B,#EC5E3D)',borderRadius:'99px'}"></div>
+                </div>
+              </div>
+              <div v-if="byBuilding.length===0" style="font-size:13px;color:#B7ACA4">ยังไม่มีข้อมูล</div>
+            </div>
+          </div>
+
+          <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+              <div style="font-size:14px;font-weight:700">ระดับความสำคัญ / By priority</div>
+              <button @click="dashSort.priority=!dashSort.priority" :style="sortBtnStyle(dashSort.priority)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"/><path d="M3 12h8"/><path d="M3 18h4"/><path d="M18 8V20"/><path d="M15 17l3 3 3-3"/></svg>
+                จำนวน
+              </button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <div v-for="row in byPriority" :key="row.label">
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px">
+                  <span style="font-weight:600;color:#3A332F">{{ row.label }}</span>
+                  <span style="color:#9A8F88">{{ row.count }}</span>
+                </div>
+                <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden">
+                  <div :style="{height:'100%',width:row.pct+'%',background:row.color,borderRadius:'99px'}"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- By description -->
+        <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff;margin-top:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <div style="font-size:14px;font-weight:700">Defect ตามหัวข้อ / By description</div>
+            <button @click="dashSort.description=!dashSort.description" :style="sortBtnStyle(dashSort.description)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"/><path d="M3 12h8"/><path d="M3 18h4"/><path d="M18 8V20"/><path d="M15 17l3 3 3-3"/></svg>
+              จำนวน
+            </button>
+          </div>
+          <div v-if="byDescription.length===0" style="font-size:13px;color:#B7ACA4;padding:6px 0">ยังไม่มีข้อมูล / No data yet</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div v-for="row in byDescription" :key="row.label">
+              <div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;margin-bottom:5px">
+                <span style="font-weight:600;color:#3A332F">{{ row.label }}</span>
+                <span style="color:#9A8F88;flex:none">{{ row.count }}</span>
+              </div>
+              <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden">
+                <div :style="{height:'100%',width:row.pct+'%',background:'linear-gradient(90deg,#7BAE92,#4F9970)',borderRadius:'99px'}"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ===== MODAL ===== -->
+  <div v-if="modal" style="position:fixed;inset:0;background:rgba(28,24,22,.45);display:flex;align-items:center;justify-content:center;z-index:80;padding:20px" @click.self="modal=null">
+    <div style="background:#fff;border-radius:16px;padding:22px 22px 20px;width:min(420px,94vw);box-shadow:0 24px 60px rgba(0,0,0,.25);animation:pop-in .16s ease">
+      <div style="font-size:17px;font-weight:700;margin-bottom:16px">{{ modalCfg.title }}</div>
+      <label style="font-size:12.5px;font-weight:600;color:#6B615B;display:block;margin-bottom:6px">{{ modalCfg.labelA }}</label>
+      <input v-model="modalA" :placeholder="modalCfg.phA" style="width:100%;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;color:#2C2724;outline:none;margin-bottom:14px">
+      <div v-if="modalCfg.showB">
+        <label style="font-size:12.5px;font-weight:600;color:#6B615B;display:block;margin-bottom:6px">{{ modalCfg.labelB }}</label>
+        <input v-model="modalB" :placeholder="modalCfg.phB" style="width:100%;padding:11px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;color:#2C2724;outline:none;margin-bottom:14px">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px">
+        <button @click="modal=null" style="padding:9px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:14px;cursor:pointer">ยกเลิก</button>
+        <button @click="saveModal" style="padding:9px 22px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:14px;cursor:pointer">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== REPORT CONFIRM ===== -->
+  <div v-if="reportConfirm" style="position:fixed;inset:0;background:rgba(28,24,22,.45);display:flex;align-items:center;justify-content:center;z-index:85;padding:20px" @click.self="reportConfirm=false">
+    <div style="background:#fff;border-radius:16px;padding:24px 22px 20px;width:min(380px,94vw);box-shadow:0 24px 60px rgba(0,0,0,.25);animation:pop-in .16s ease;text-align:center">
+      <div style="width:46px;height:46px;border-radius:50%;background:#EFF8F2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#2F8857">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      </div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px">ดาวน์โหลดรายงาน? / Download Report?</div>
+      <div style="font-size:13.5px;color:#6B615B;line-height:1.5;margin-bottom:20px">ส่งออก Defect ทั้งหมดเป็นไฟล์ Excel / Export all defects to an Excel file</div>
+      <div style="display:flex;gap:10px">
+        <button @click="reportConfirm=false" style="flex:1;padding:11px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:14px;cursor:pointer">No / ไม่</button>
+        <button @click="doReport" style="flex:1;padding:11px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.30)">Yes / ใช่</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STATUS CONFIRM ===== -->
+  <div v-if="confirm" style="position:fixed;inset:0;background:rgba(28,24,22,.45);display:flex;align-items:center;justify-content:center;z-index:85;padding:20px" @click.self="confirm=null">
+    <div style="background:#fff;border-radius:16px;padding:24px 22px 20px;width:min(380px,94vw);box-shadow:0 24px 60px rgba(0,0,0,.25);animation:pop-in .16s ease;text-align:center">
+      <div style="width:46px;height:46px;border-radius:50%;background:#FDEEE9;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;color:#EC5E3D">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.7 9.7 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5"/></svg>
+      </div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px">เปลี่ยนสถานะ? / Change status?</div>
+      <div style="font-size:13.5px;color:#6B615B;line-height:1.5;margin-bottom:20px">
+        <span style="font-weight:600;color:#9A8F88">{{ confirm ? statusLabel(confirm.from) : '' }}</span>
+        <span style="margin:0 6px;color:#C0B5AD">→</span>
+        <span :style="{fontWeight:700,color:confirm ? statusColor(confirm.to) : '#2C2724'}">{{ confirm ? statusLabel(confirm.to) : '' }}</span>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button @click="confirm=null" style="flex:1;padding:11px 18px;border-radius:10px;border:1px solid #E6DBD4;background:#fff;color:#6B615B;font-weight:600;font-size:14px;cursor:pointer">ยกเลิก / Cancel</button>
+        <button @click="doCycle" style="flex:1;padding:11px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#F3795B,#EC5E3D);color:#fff;font-weight:600;font-size:14px;cursor:pointer;box-shadow:0 6px 15px rgba(236,94,61,.30)">ยืนยัน / Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOAST ===== -->
+  <div v-if="toastMsg" style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:#2C2724;color:#fff;padding:12px 22px;border-radius:12px;font-size:14px;font-weight:500;z-index:90;box-shadow:0 12px 30px rgba(0,0,0,.3);animation:toast-in .2s ease;max-width:90vw;text-align:center">{{ toastMsg }}</div>
+
+</div><!-- #app -->
+
+<script>
+// ─── Static data ────────────────────────────────────────────────────────────
+
+const HOTELS = [
+  { id:'sands', name:'The Sands Khao Lak', buildings:[
+    { id:'sandsA3', name:'A3', floors:[
+      { id:'sa3f1', name:'1', rooms:['Fitness','Yoga Room','Recreation'] },
+      { id:'sa3f2', name:'2', rooms:['2201','2202','2203','2204','2205','2206','2207','2208','2209','2210'] },
+      { id:'sa3f3', name:'3', rooms:['2301','2302','2303','2304','2305','2306','2307','2308','2309','2310'] }
+    ]},
+    { id:'sandsC1', name:'C1', floors:[
+      { id:'sc1f1', name:'1', rooms:['3101','3102','3103','3104','3105','3106','3107','3108','3109','3110','3111','3112','3113','3114','3115','3116'] },
+      { id:'sc1f2', name:'2', rooms:['3201','3202','3203','3204','3205','3206','3207','3208','3209','3210','3211','3212','3213','3214','3215','3216'] },
+      { id:'sc1f3', name:'3', rooms:['3301','3302','3303','3304','3305','3306','3307','3308','3309','3310','3311','3312','3313','3314','3315','3316'] }
+    ]}
+  ]},
+  { id:'sunclub', name:'The Sun Club Khao Lak', buildings:[
+    { id:'sunA1', name:'A1', floors:[
+      { id:'sa1f1', name:'1', rooms:['2111','2112','2113','2114','2115','2116','2117','2118','2119','2120','2121','2122'] }
+    ]}
+  ]}
+];
+
+const DESCRIPTIONS = [
+  'เก็บสี | Paint touch-up','ยาแนวไม่เต็ม | Incomplete grout','ประตูบิ่น | Chipped door','ไฟในตู้ผ้าไม่ตัด | Wardrobe light won\'t turn off','ซิลิโคลนไม่เรียบ | Uneven silicone','ยาแนวไม่เรียบร้อย | Untidy grout','ยาแนว | Grout','ทาสี | Painting','ไฟในห้องน้ำ | Bathroom light','Artwork | Artwork','งานไฟ | Electrical work','พื้นปาเก้ | Parquet floor','ผนังประตูบานเลื่อนห้องน้ำ | Bathroom sliding door wall','คราบสติกเกอร์ | Sticker residue','ผนังห้องสีถลอก | Room wall paint scuffed','ยาแนวพื้นใต้โต๊ะหัวเตียง | Floor grout under bedside table','ผนังข้างประตูบานเลื่อนห้องนอนสีถลอก | Wall beside bedroom sliding door paint scuffed','ไม้ฉลุประตูบานเลื่อนห้องนอนบิ่น | Bedroom sliding door fretwork chipped','ไม้ฉลุประตูบานเลื่อนห้องนอนตะปูโผล่ | Bedroom sliding door fretwork nail protruding','ไม้ฉลุเหนือโต๊ะใต้ทีวีหัวตะปูโผล่ | Fretwork above table under TV nail head protruding','ผนังข้างประตูรีวิวเป็นรู | Wall beside seaview door has hole','สายไฟตรงประตูซีวิวหลุดไม่เรียบร้อย | Wiring at seaview door loose/untidy','ประตูบานเลื่อนห้องนอนสีถลอก | Bedroom sliding door paint scuffed','อ่างล้างหน้าตัน | Clogged washbasin','บานประตูทางเข้ามีรอยบิ่น | Entrance door has chip','ขอบตู้วางชุดกาแฟไม่เรียบ | Coffee set cabinet edge uneven','กระจกวางชั้นวางชุดกาแฟมีคราบสติ๊กเกอร์ | Coffee set shelf glass has sticker residue','ผนังห้องใต้ อาทเวิดร์สีถลอก | Room wall under artwork paint scuffed','ไม้ฉลุข้างทีวีสีถลอก | Fretwork beside TV paint scuffed','ผนังข้างประตูซีวิวสีถลอก | Wall beside seaview door paint scuffed','ไม้ฉลุตรงประตูบานเลื่อนห้องนอนสีถลอก | Fretwork at bedroom sliding door paint scuffed','วงกบประตูทางเข้าด้านในสีไม่เรียบ | Entrance door frame inside paint uneven','บานประตูทางเข้ามีรอยขีดข่วน | Entrance door has scratches','ผนังใต้ อาทเวิดร์สีถลอก | Wall under artwork paint scuffed','ไม้ฉลุประตูบานเลื่อนห้องนอนมีตะปูโผล่ | Bedroom sliding door fretwork nail protruding','มุมประตูบานเลื่อนห้องนอนมีคราบสีติด | Bedroom sliding door corner has paint stain','ผนังข้างประตูบานเลื่อนห้องนอนเป็นรอยขีดข่วน | Wall beside bedroom sliding door scratched','ผนังตรงประตูซีวิวเป็นรู | Wall at seaview door has hole','ซิลิโคนขอบปาเก้ตรงทางต่างระดับ | Silicone at parquet edge at level change','ขาเตียงนอนสีถลอก | Bed leg paint scuffed','พื้นปาเก้มีรอยบิ่น | Parquet floor has chip','ไม้ฉลุโต๊ะหัวเตียงสีถลอก | Bedside table fretwork paint scuffed','ผนังห้องมีรอยขีด | Room wall has scratch','พื้นกระเบื้องข้างกระจกกั้นห้องน้ำมีรอยบิ่น | Tile floor beside bathroom glass partition chipped','ซิลิโคนขอบกระเบื้องใต้โต๊ะหัวเตียง | Silicone at tile edge under bedside table','ผนังห้องข้างปลั๊กไฟมีรอยขีดปากกา | Room wall beside socket has pen mark','ฝ้าเพดานเหนืออาทเวิดร์สีถลอก | Ceiling above artwork paint scuffed','ผนังข้างกระจกเคาน์เตอร์อ่างล้างหน้ายังไม่ได้ยาแนว | Wall beside washbasin counter glass not yet grouted','ข้างกระจกยาวสีไม่เรียบ | Beside long mirror paint uneven','ไม้ฉลุประตูบานเลื่อนห้องนอนสีถลอก | Bedroom sliding door fretwork paint scuffed','ผนังห้องข้างประตูบานเลื่อนห้องนอนสีถลอก | Room wall beside bedroom sliding door paint scuffed','ปลั๊กไฟใต้ทีวีเป็นรู | Socket under TV has hole','ปลั๊กไฟข้างประตู civic ยาแนวหลุด | Socket beside seaview door grout detached','โฟเมก้าขอบเตียงนอนเด็กหลุด | Child bed edge formica detached','ขอบประตูบานเลื่อนห้องนอนสีแตก | Bedroom sliding door edge paint cracked','บานพับประตูทางเข้าทาสีเข้าไม่ถึงรองบานพับ | Entrance door hinge paint doesn\'t reach hinge base','วงกบประตูทางเข้าสีถลอก | Entrance door frame paint scuffed','บล็อกล็อคประตูทางเข้าสีไม่เต็ม | Entrance door lock block paint incomplete','บานประตูทางเข้าข้างระบบคีย์การ์ดสีไม่เต็ม | Entrance door beside keycard system paint incomplete','ท่อดินใต้อ่างอาบน้ำตัน | Drain pipe under bathtub clogged','ฝาผนังในห้องมีรอยขีด | Room wall has scratch','โฟเมก้าเตียงนอนอ้า | Bed formica gap','ผนังห้องข้างประตูบานเลื่อนห้องนอนมีรอยขีดและปูนแตก | Room wall beside bedroom sliding door scratched and plaster cracked','ไม้ฉลุข้างทีวีมีรอยบิ่น | Fretwork beside TV chipped','ข้างไม้ฉลุเหนือม้าวางกระเป๋ามีรอยแตก | Beside fretwork above luggage bench cracked','ซิลิโคนขอบคิ้วปาเก้ข้างโต๊ะหัวเตียง | Silicone at parquet trim edge beside bedside table','โฟเมก้าพื้นเตียงนอนเด้ง | Bed base formica lifting','คิ้วบัวด้านล่าง | Lower skirting trim','ฝาผนังห้องมีรอยขีด | Room wall has scratch','เตียงนอนเด็กเป็นรูหัวน็อต | Child bed has bolt hole','โฟเมก้าขาเตียงนอนแตก | Bed leg formica cracked','ไม้บังไฟช่องหลืบมีรอยบิ่น | Cove-light wood baffle chipped','ประตูบานเลื่อนด้านบนมีหัวตะปูโผล่ | Sliding door top has nail head protruding','ฝ้าเพดานเหนือไม้ฉลุโต๊ะหัวเตียงสีถลอก | Ceiling above bedside table fretwork paint scuffed','กระจกกลมโต๊ะหัวเตียงมีคราบสติ๊กเกอร์ | Round mirror on bedside table has sticker residue','พื้นกระเบื้องข้างกระจกอ่างอาบน้ำเป็นรู | Tile floor beside bathtub glass has hole','อาทเวิดร์ไม้เป็นรู | Wood artwork has hole','บานประตูทางเข้าสีถลอก | Entrance door paint scuffed','ในตู้เสื้อผ้าเป็นรู | Inside wardrobe has hole','พื้นกระเบื้องตรงประตูทางเข้าห้องน้ำเป็นรู | Tile floor at bathroom entrance has hole','ยาแนวขอบกระเบื้องเคาน์เตอร์อ่างล้างหน้า | Grout at washbasin counter tile edge','ยาแนวพื้นกระเบื้องห้องชักโครก | Grout on toilet floor tile','โฟเมก้าขอบตู้วางตู้เย็นบิน | Refrigerator cabinet edge formica chipped','ไฟในตู้วางชุดกาแฟไม่ติด | Coffee set cabinet light not working','ฝ้าเพดานเหนือกระจกกั้นห้องน้ำเป็นรู | Ceiling above bathroom glass partition has hole','ขอบกระจกยาวสีถลอก | Long mirror edge paint scuffed','พนัสโต๊ะหัวเตียงใต้กระจกกลมด่าง | Bedside table surface under round mirror stained','ไม้ฉลุหัวเตียงนอนสีถลอก | Bed headboard fretwork paint scuffed','ไม้ฉลุประตูบานเลื่อนห้องนอนมีรอยด่าง | Bedroom sliding door fretwork stained','โฟเมก้าขอบเตียงนอนอ้า | Bed edge formica gap','ขอบบานประตูบานเลื่อนห้องนอนบิ่น | Bedroom sliding door edge chipped','ผนังห้องข้างประตูบานและห้องนอนสีถลอก | Room wall beside bedroom door paint scuffed','ขอบประตูบานเลื่อนห้องนอนสีถลอก | Bedroom sliding door edge paint scuffed','ผนังห้องข้างโซฟาเด็กสีถลอก | Room wall beside child sofa paint scuffed','ประตูบานเลื่อนห้องนอนไม้บิ่น | Bedroom sliding door wood chipped','ฝ้าเพดานตรงประตูบานเลื่อนห้องนอนสีถลอก | Ceiling at bedroom sliding door paint scuffed','ผนังห้องฝั่งทีวีสีถลอก | Room wall on TV side paint scuffed','ไม้ฉลุข้างทีวีมีรอยขีดและด่าง | Fretwork beside TV scratched and stained','ฝ้าเพดานเหนือทีวีสีถลอก | Ceiling above TV paint scuffed','วงกบประตูทางเข้าด้านนอกปูนแตก | Entrance door frame outside plaster cracked','ระหว่างวงกบประตูทางเข้าและตู้เสื้อผ้าเป็นร่องโว่ | Gap between entrance door frame and wardrobe','ในตู้เสื้อผ้ามีตะปูโผ่ล | Inside wardrobe has nail protruding','พื้นกระเบื้องตรงทางเข้าห้องน้ำมีตัวล็อคประตูบานเลื่อนห้องน้ำ | Bathroom entrance tile floor has sliding door lock','ช่องไฟบนตู้วางชุดกาแฟเป็นรู | Light slot on coffee set cabinet has hole','ไม้ฉลุเหนือไม้วางกระเป๋าบิน | Fretwork above luggage rack chipped','ผนังห้องข้างประตูบานเลื่อนห้องนอนมีรอยขีด | Room wall beside bedroom sliding door has scratch','ไม้ฉลุประตูบานเลื่อนห้องนอนมีรอยบิ่น | Bedroom sliding door fretwork chipped','พื้นปาเก้ตุงประตูบานเลื่อนห้องนอนเป็นรู | Parquet floor at bedroom sliding door bulging/has hole','คิ้วบัวด้านล่างตรงประตูบานเลื่อนห้องนอนเป็นร่อง | Lower skirting at bedroom sliding door has gap','ไม้ฉลุเหนือใต้โต๊ะทีวีหัวตะปูโผล่ | Fretwork above/under TV table nail head protruding','โฟเมก้าขาเตียงนอนเด็กบิน | Child bed leg formica chipped','ฝ้าเพดานเหนือเตียงนอนเด็กมีรอยแตก | Ceiling above child bed cracked','พื้นกระเบื้องข้างโต๊ะหัวเตียงยังไม่ได้ยาแนว | Tile floor beside bedside table not yet grouted','พื้นกระเบื้องข้างกระจกกั้นห้องน้ำสีไม่เหมือนกัน | Tile floor beside bathroom glass partition colour mismatch','บ๊อบนักสู้ประตูทางเข้าเป็นรู | Entrance door stopper has hole','บานพับประตูทางเข้าเป็นร่อง | Entrance door hinge has gap','บานประตูทางเข้าข้างตาแมวมีรอยบิ่น | Entrance door beside peephole chipped','ผนังข้างคิ้วบัวด้านล่างตรงประตูทางเข้าปูนแตก | Wall beside lower skirting at entrance door plaster cracked','ฝ้าเพดานมีรอยแตก | Ceiling cracked','ฟ้าผนังข้างไม้ฉลุเหนือม้าวางกระเป๋าสีถลอก | Wall beside fretwork above luggage bench paint scuffed','ข้างรูมเทอร์โมแอร์ยาแนวไม่เต็ม | Beside air-con thermostat grout incomplete','ผนังสีถลอก | Wall paint scuffed','แผ่นรองไม้ใต้เตียงนอนเปิด | Wood base board under bed lifting','พื้นปาเก้ข้างประตูซีวิวมีรอยขีดข่วน | Parquet floor beside seaview door scratched','ผนังข้างไม้ฉลุหลังทีวีเป็นรู | Wall beside fretwork behind TV has hole','ยาแนวขอบกระเบื้องข้างโต๊ะหัวเตียง | Grout at tile edge beside bedside table','สายไฟตรงรางผ้าม่านโผ่ล | Wiring at curtain rail protruding'
+];
+
+const RESPONSIBLES = [
+  'ก่อสร้าง | Construction',
+  'ช่างเฟอร์นิเจอร์ | Furniture technician',
+  'ช่างไฟ | Electrician',
+  'ช่างประปา | Plumber',
+  'ช่างโรงแรม | Hotel maintenance',
+  'งานม่าน งานเบาะ | Curtains & upholstery'
+];
+
+</script>
+<script>
+const ZITE_DEFECTS = [{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3116","description":"ไฟในห้องน้ำ","responsible":"ช่างไฟ","note":"ไฟห้องน้ำไม่เรียบร้อย ห้อย","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/370iYTWTnYwQoSQmu2HxCk5Wf3twFbYR_image.jpg","createdAt":1781757495259,"id":"zmqj0eq57"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3116","description":"Artwork","responsible":"ช่างเฟอร์นิเจอร์","note":"Artwork หลุด","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/VzJrzIGvPvF0Xa8bcH7iAop9s0QFZJQ8_image.jpg","createdAt":1781757582221,"id":"zmqj0gl8t"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3116","description":"เก็บสี","responsible":"ช่างเฟอร์นิเจอร์","note":"ทาสีผนังห้องใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/KHBp3ABpkAggsSFfo40BJVxZoFi05XBo_image.jpg","createdAt":1781757639801,"id":"zmqj0hto9"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3116","description":"งานไฟ","responsible":"ช่างไฟ","note":"ยาแนวบล้อคไฟ ใต้ tv มีช่อง","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/9ohi8lYgqJkwyca03rQ0ivxBPdEBvdUx_image.jpg","createdAt":1781757725278,"id":"zmqj0jnmm"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3116","description":"พื้นปาเก้","responsible":"ช่างเฟอร์นิเจอร์","note":"พื้นปาเก้บิ่น คมบาดเท้า","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/linQ7siHWBDWK3j2CK90hvVRXNqEZbvO_image.jpg","createdAt":1781757793345,"id":"zmqj0l45d"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3116","description":"พื้นปาเก้","responsible":"ช่างเฟอร์นิเจอร์","note":"พื้นปาเก้ เป็นรอยขีด","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/8flXZio0lDkQiNj7KkZShJzpd9495217_image.jpg","createdAt":1781757856235,"id":"zmqj0mgob"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ผนังประตูบานเลื่อนห้องน้ำ","responsible":"ก่อสร้าง","note":"เก็บสี","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/5qVOQXqLp6nmCd3myFXUSPLmdkePzmAi_17817659250092909968255918122569.jpg","createdAt":1781766052437,"id":"zmqj5i4wl"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"คราบสติกเกอร์","responsible":"ช่างเฟอร์นิเจอร์","note":"มีรอยคราบกาว","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/9xa8HdH70fgCVbBbFjSyl3z1GL6NssvD_17817662271528929351606673359630.jpg","createdAt":1781766382345,"id":"zmqj5p7gp"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"เก็บสี","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/FFjqzF759Sj9N2V78XJxzdY0Y596Y9Fl_17817664264511123669793367540084.jpg","createdAt":1781766551271,"id":"zmqj5stt3"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"เก็บสี","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/F3QmAYOS0UJhC4i8X6Ujm6FDQjarsvXE_17817665856958586612965925972661.jpg","createdAt":1781766693722,"id":"zmqj5vvq2"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ผนังห้องสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/3INCXJoW1KUGSQUnQK32dzjtfu9QtN1t_17817667168728652327606789625578.jpg","createdAt":1781766810371,"id":"zmqj5ydqb"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ยาแนวพื้นใต้โต๊ะหัวเตียง","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/JFI5FWvF4FfbIDuePCIObSDWhtZ7lPli_17817669828518210705744412633900.jpg","createdAt":1781767060669,"id":"zmqj63qv1"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ผนังข้างประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/t0Te41URrN2PBqmCYhvwyMW2zfxCpi89_17817670911281907844243115285424.jpg","createdAt":1781767144265,"id":"zmqj65jd5"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ไม้ฉลุประตูบานเลื่อนห้องนอนบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/S2iKRnMWEWmCUP4ZtRQclzq0LqfEcO4M_17817671656543323152371151221267.jpg","createdAt":1781767245464,"id":"zmqj67pg8"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ไม้ฉลุประตูบานเลื่อนห้องนอนตะปูโผล่","responsible":"ช่างเฟอร์นิเจอร์","note":"ถอดหัวตะปูออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/FwVPGuc1kTlUFetcN0LC781fm0onh90T_17817672615855366089147078719528.jpg","createdAt":1781767313228,"id":"zmqj695qk"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ผนังข้างประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/HBvyMehZCQVgQ9ZM7s9VdvnSMxAdg5SM_17817673382418278074405434881509.jpg","createdAt":1781767416407,"id":"zmqj6bdcn"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ไม้ฉลุเหนือโต๊ะใต้ทีวีหัวตะปูโผล่","responsible":"ช่างเฟอร์นิเจอร์","note":"เอาหัวตะปูออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/9Iu2y1SLjZaDc1VpTmQuMDmVWjL8KlYA_17817674370713576509995783541262.jpg","createdAt":1781767562059,"id":"zmqj6ehqj"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ผนังข้างประตูรีวิวเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูผนัง","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/qFeBk6G3EXWTRYIIs3rrvc4tK9Du3ejx_1781767579144704774443219936780.jpg","createdAt":1781767658914,"id":"zmqj6gkgy"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"สายไฟตรงประตูซีวิวหลุดไม่เรียบร้อย","responsible":"ช่างไฟ","note":"เก็บสายไฟใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/uFufjL8DucjyEe8apKb8Am4PitjpGEH6_17817676736017039476222219460095.jpg","createdAt":1781767771428,"id":"zmqj6izac"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/YkdnYR9Ch9aeSMW3UIlA18T5idEgnl1m_17817677904338011241020947063630.jpg","createdAt":1781767839117,"id":"zmqj6kfil"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"ผนังห้องสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"ทาสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/gvSm2z3Zu2EIftnC1HDSD5NbbOjIbth4_17817678729667099650739607963102.jpg","createdAt":1781767922987,"id":"zmqj6m88b"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3115","description":"อ่างล้างหน้าตัน","responsible":"ช่างประปา","note":"ท่ออ่างล้างหน้ามีเศษปูน","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/a7gDOx1EgXjDB0WBsNtGKOLU5z8Makvp_17817679506261896982102932279195.jpg","createdAt":1781768020649,"id":"zmqj6obl5"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"บานประตูทางเข้ามีรอยบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/oSUI2doH06p39bGDZGoVdFXsSYt5m67T_1781768151898676234205553421841.jpg","createdAt":1781768233187,"id":"zmqj6svkz"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"ขอบตู้วางชุดกาแฟไม่เรียบ","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/tpiylZcAYKlFb10OB5Dz8VFLI0OmGjDr_17817683905584721058251847772292.jpg","createdAt":1781768484049,"id":"zmqj6y95d"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"กระจกวางชั้นวางชุดกาแฟมีคราบสติ๊กเกอร์","responsible":"ช่างเฟอร์นิเจอร์","note":"ขัดคราบสติ๊กเกอร์ออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/gUV3xaZPAHVqKT5tzIwkNXyZSQFt0zjq_17817685041448404332302833827651.jpg","createdAt":1781768593012,"id":"zmqj70l84"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"ผนังห้องใต้ อาทเวิดร์สีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"ทาสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/K64TGKu2XpnYQe5QkTwE3HlUuMc1dSkf_17817686312328281802623478223494.jpg","createdAt":1781768763363,"id":"zmqj748o3"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"ไม้ฉลุข้างทีวีสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/tqQfpmHbgXwBCZkHmwctKOloBUa0lWzx_17817687870351573115695834004670.jpg","createdAt":1781768879964,"id":"zmqj76qn0"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"ผนังข้างประตูซีวิวสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"ทาสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/dW0AwlwW4ZvneT18RxcbfSaTCofJCDnC_17817688955456995219533645457934.jpg","createdAt":1781768953702,"id":"zmqj78bja"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"ไม้ฉลุตรงประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/7SXBIHDsCUW6NlZ7iYEAOQ0qmu6kSvty_17817689686078491680759690586217.jpg","createdAt":1781769019840,"id":"zmqj79qkg"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3114","description":"วงกบประตูทางเข้าด้านในสีไม่เรียบ","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/GTYztsOAzENgKykGt4Rt9SaTonnC8VyI_17817691016747190454581072191630.jpg","createdAt":1781769155177,"id":"zmqj7cmzt"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"บานประตูทางเข้ามีรอยขีดข่วน","responsible":"ช่างเฟอร์นิเจอร์","note":"ขัดบานประตูใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/xXJ15qrHG9wShZnAHwA8OsMeiZ98KW7j_1781770311432172404923049475619.jpg","createdAt":1781770417608,"id":"zmqj83p3c"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ผนังใต้ อาทเวิดร์สีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/RG1LWIGRd0hNPCikgGbK17A6RFx3t3zE_17817704732994769986977748892633.jpg","createdAt":1781770540936,"id":"zmqj86c94"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ไม้ฉลุประตูบานเลื่อนห้องนอนมีตะปูโผล่","responsible":"ช่างเฟอร์นิเจอร์","note":"ถอดหัวตะปูออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/yinKFmuRi96TWV2xuXYhdKRlcNb6dxwk_17817705561017453467234598600206.jpg","createdAt":1781770617822,"id":"zmqj87zku"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"มุมประตูบานเลื่อนห้องนอนมีคราบสีติด","responsible":"ช่างเฟอร์นิเจอร์","note":"ขูดคาบสีออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/R6eO76dlNWGO5xpTrzArtInZbH5GVx7G_17817706397081193816847145904038.jpg","createdAt":1781770698176,"id":"zmqj89pkw"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ผนังข้างประตูบานเลื่อนห้องนอนเป็นรอยขีดข่วน","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/FbD5DBKD5FiW7mSjlmumAHnlmVVWIDKo_17817707168341207129787826150613.jpg","createdAt":1781770785823,"id":"zmqj8bl7j"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ผนังตรงประตูซีวิวเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูผนังใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/9aDH7caGssBAsBixW66fBFQqZf4xuETb_17817708124662129894472092067256.jpg","createdAt":1781770892131,"id":"zmqj8dv8j"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ซิลิโคนขอบปาเก้ตรงทางต่างระดับ","responsible":"ช่างเฟอร์นิเจอร์","note":"ซิลิโคนใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Pa0E5EfOoSAzq6dphcaMCeDDotT9sU8Q_17817709131877392002287497730163.jpg","createdAt":1781771017949,"id":"zmqj8gkbh"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ขาเตียงนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"ทาสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/OLwy6CM7XtPmObu8RtvkTYjaA9hdODP7_17817710497691764377618403712655.jpg","createdAt":1781771098843,"id":"zmqj8iaqj"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"พื้นปาเก้มีรอยบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"แก้ไขรอยบิ่นพื้นปาเก้ใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/0Dibpg9YpJOmni2P31t8P4FT94SFWdq0_17817711307166225380401255057553.jpg","createdAt":1781771214903,"id":"zmqj8ksaf"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ไม้ฉลุโต๊ะหัวเตียงสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/aLnTk8JCglxpVyYNR1jykMOR8n1asCSf_17817712351133549923824346783563.jpg","createdAt":1781771299565,"id":"zmqj8mlm5"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ผนังห้องมีรอยขีด","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/XNSHNqCy8JP8uEQRtM7LTcOOvWbEQtoi_1781771323176638533310985970290.jpg","createdAt":1781771360722,"id":"zmqj8nwsy"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"พื้นกระเบื้องข้างกระจกกั้นห้องน้ำมีรอยบิ่น","responsible":"ช่างโรงแรม","note":"เปลี่ยนพื้นกระเบื้องใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/gQdVKoE1QFFjY7eH6p30BPYBaz3Yvxbp_17817713793906949260217582546266.jpg","createdAt":1781771460586,"id":"zmqj8q1uy"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3113","description":"ซิลิโคนขอบกระเบื้องใต้โต๊ะหัวเตียง","responsible":"ช่างเฟอร์นิเจอร์","note":"ซิลิโคนใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/BwHYG5gxJ1kdcZL3c9BHNnhRr9FQO0eX_17817714758675927268680161257371.jpg","createdAt":1781771536549,"id":"zmqj8roh1"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ผนังห้องข้างปลั๊กไฟมีรอยขีดปากกา","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/XyNKEwH7ca3saJUyy616wzAyZdeyaSjr_17817718334825011464475639787661.jpg","createdAt":1781771886427,"id":"zmqj8z6fv"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ผนังห้องสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/wHFhPgsBMMgbsXgLrIjRUohS7mQPmV2Z_178177190982776726579658944718.jpg","createdAt":1781771990797,"id":"zmqj91ez1"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ฝ้าเพดานเหนืออาทเวิดร์สีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/n4NnYzvPu6meYSvJZ97UVmGns4eiR6hc_17817720138259072286444855652677.jpg","createdAt":1781772081588,"id":"zmqj93d10"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ผนังข้างกระจกเคาน์เตอร์อ่างล้างหน้ายังไม่ได้ยาแนว","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/1kAMtx1l7QtVrOgKaFDL0f19Vv3o1ues_1781772106689713768476788237049.jpg","createdAt":1781772195040,"id":"zmqj95skg"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ข้างกระจกยาวสีไม่เรียบ","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/XpGKHf7ms051DpmeybNojX20mJV5CKsv_17817722202914454633049622981746.jpg","createdAt":1781772282387,"id":"zmqj97nyr"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ไม้ฉลุประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/ts71GdDpo9i5UJHCdc2lJFcbtdpOcenO_17817723131765894703077156292380.jpg","createdAt":1781772394625,"id":"zmqj9a2kh"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ผนังห้องข้างประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/CjfJeo60rp0NZsGIZohKSpQTsszF8Bbg_17817724216878148354610588387847.jpg","createdAt":1781772472000,"id":"zmqj9bq9s"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ปลั๊กไฟใต้ทีวีเป็นรู","responsible":"ช่างไฟ","note":"อุดรูปลั๊กไฟใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/N4UI79zj9GeHYe9QdpzOypAZxQfznwKk_17817725243094711756209300704189.jpg","createdAt":1781772602461,"id":"zmqj9eixp"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ปลั๊กไฟข้างประตู civic ยาแนวหลุด","responsible":"ช่างไฟ","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UH00kK5IpSlFR3ZZMwivZPdazlyeAVh9_17817726223291153690629415080630.jpg","createdAt":1781772727588,"id":"zmqj9h7hg"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"โฟเมก้าขอบเตียงนอนเด็กหลุด","responsible":"ช่างเฟอร์นิเจอร์","note":"ติดแผ่นโฟเมก้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/DhpzXKQlgRBhJcJ1ld6GLiYMhFepWjzz_17817727463565687005276416745142.jpg","createdAt":1781772809014,"id":"zmqj9iyba"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ผนังข้างประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/TtrrO4qbsIjhMZAGBNdAUJMQ3Hf7uWDY_17817728247206947925265872968887.jpg","createdAt":1781772887800,"id":"zmqj9kn3s"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"ขอบประตูบานเลื่อนห้องนอนสีแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/2hzf3ttJ9vvzHdpqShds4KdRFrFUIfmu_17817729146922017212743934981871.jpg","createdAt":1781772965211,"id":"zmqj9mau3"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3112","description":"บานพับประตูทางเข้าทาสีเข้าไม่ถึงรองบานพับ","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/hJ0m3qa7ziRkOdTZ2Pluu3SEzi8jzkTh_17817730090594422399161471329552.jpg","createdAt":1781773112910,"id":"zmqj9pgsu"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"วงกบประตูทางเข้าสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/4YuamE2gcdwJD3CbL3TEIt9Iv6CxEYIu_17819403153023354072948701787858.jpg","createdAt":1781940372260,"id":"zmqm1aexw"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"บล็อกล็อคประตูทางเข้าสีไม่เต็ม","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/YEwiHvjO38GCy80BVipU96Kd8uq1C5gf_17819404022328570142447040904792.jpg","createdAt":1781940466797,"id":"zmqm1cfvx"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"บานประตูทางเข้าข้างระบบคีย์การ์ดสีไม่เต็ม","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/DZcgCfdfq1qfR2ai8q3NmtsF3k4aJRxm_17819404799854432251614659447557.jpg","createdAt":1781940546184,"id":"zmqm1e554"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ท่อดินใต้อ่างอาบน้ำตัน","responsible":"ช่างประปา","note":"เอาเศษปูนออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/VNRREiwZ9H8R5GzIOpmpC9eCgc7BqQ2I_17819406464302376870130966027461.jpg","createdAt":1781940753715,"id":"zmqm1il9v"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ฝาผนังในห้องมีรอยขีด","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Qvm5IUXZzlEoVEy4jJhIsDoKv2WBwT2Z_1781940789711674842421359978335.jpg","createdAt":1781940850938,"id":"zmqm1koai"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"โฟเมก้าเตียงนอนอ้า","responsible":"ช่างเฟอร์นิเจอร์","note":"ติดโฟเมก้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UZmuBVLv16Ryf1EXygp2S2emlzh4zS7D_17819408715988439596625059657780.jpg","createdAt":1781940923726,"id":"zmqm1m8ge"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ผนังห้องข้างประตูบานเลื่อนห้องนอนมีรอยขีดและปูนแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/mJLkuEL91NNqcdoPU48ZmTJsecUXL5OH_17819409401321104798093830461881.jpg","createdAt":1781941000126,"id":"zmqm1nvem"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ไม้ฉลุข้างทีวีมีรอยบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/1spJpWG1EX3qD0JJYNZt36Zo1Y07WfKW_17819410840487286970338779842234.jpg","createdAt":1781941251018,"id":"zmqm1t8zu"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ข้างไม้ฉลุเหนือม้าวางกระเป๋ามีรอยแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UWtxsG2L6RyfcD0JBT8MbTDVKEBnNhjs_17819413441722414361332162706600.jpg","createdAt":1781941530462,"id":"zmqm1z8m6"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ซิลิโคนขอบคิ้วปาเก้ข้างโต๊ะหัวเตียง","responsible":"ช่างเฟอร์นิเจอร์","note":"ซิลิโคนใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/5yeesYbeX2YC6zRG82SPFmJ6y4xkR1WS_17819415640199056077189750695811.jpg","createdAt":1781941625505,"id":"zmqm219y9"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"โฟเมก้าพื้นเตียงนอนเด้ง","responsible":"ช่างเฟอร์นิเจอร์","note":"เปลี่ยนแผ่นโฟเมก้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/1p8xNNSizdMozigciWNNH1UxKDXrzzAD_17819416501482203236603790298929.jpg","createdAt":1781941719493,"id":"zmqm23ah1"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"คิ้วบัวด้านล่าง","responsible":"ช่างเฟอร์นิเจอร์","note":"เปลี่ยนคิ้วบัวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/yVqNoJwwv55YbyYYQbcmyCTeSOwx5h7i_17819417312116364587507011578354.jpg","createdAt":1781941776413,"id":"zmqm24ie5"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ฝาผนังห้องมีรอยขีด","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/9jjYnSDYOQY2IaE71N2h6skwyG32Nwk7_1781941868193538390954066825152.jpg","createdAt":1781941909826,"id":"zmqm27dc2"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"เตียงนอนเด็กเป็นรูหัวน็อต","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูหัวน็อต","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UHgGyPHORG5P4MUtuqN88NrUWhEXn9A6_17819419686273598488427435726103.jpg","createdAt":1781942033590,"id":"zmqm2a0ty"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"โฟเมก้าขาเตียงนอนแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"ติดแผ่นโฟเมก้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/mozvi7td2i8ezVf15l1tRXv2H58Sz4lX_17819421449392761885742118907995.jpg","createdAt":1781942187021,"id":"zmqm2db7x"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ไม้บังไฟช่องหลืบมีรอยบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/6VVJYV1BuMzZNU7uhVVwmqGb8rUjAjTC_17819422845443205438418891076295.jpg","createdAt":1781942396788,"id":"zmqm2ht2s"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ประตูบานเลื่อนด้านบนมีหัวตะปูโผล่","responsible":"ช่างเฟอร์นิเจอร์","note":"ตัดหัวตะปูออก  เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/ydTJKfRW0lFotHGCELXprz4sIaGe9iL4_17819424486385611247596354596775.jpg","createdAt":1781942529159,"id":"zmqm2kn7r"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ฝ้าเพดานเหนือไม้ฉลุโต๊ะหัวเตียงสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Q8jPejYoHUBgYCWsPlURjKpbFr5kFhPK_17819425812756762808716213051178.jpg","createdAt":1781942627781,"id":"zmqm2mrb9"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"กระจกกลมโต๊ะหัวเตียงมีคราบสติ๊กเกอร์","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บคราบสติ๊กเกอร์ออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/m35Ndmy7JbnhDNPEDKciouhLdOKdjHlO_17819426389291661487534847564917.jpg","createdAt":1781942712691,"id":"zmqm2oktv"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"ยาแนวพื้นใต้โต๊ะหัวเตียง","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/nZQXCMLgmLlqX1ciCSWCimAmx2I4I6jg_1781942738373463695832932161112.jpg","createdAt":1781942785675,"id":"zmqm2q557"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"พื้นกระเบื้องข้างกระจกอ่างอาบน้ำเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูพื้นกระเบื้อง","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Oc5ZcYtTcs8OwdONXFF7hNThW5UtzWMU_17819428063121564798452740083517.jpg","createdAt":1781942885242,"id":"zmqm2s9yy"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3105","description":"อาทเวิดร์ไม้เป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูไม้","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/os9K5BDusAHej5O80hf5V4YUEUVUsP3t_1781942955618206424923369500690.jpg","createdAt":1781943041505,"id":"zmqm2vmjl"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"บานประตูทางเข้าสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UWIdJoUXbwMKXBxy7kpc02krlwlwURts_17819433576615175791354142211313.jpg","createdAt":1781943412336,"id":"zmqm33kog"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ในตู้เสื้อผ้าเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูไม้ในตู้เสื้อผ้า","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/GWPkqzAKfj6380cbJL2yHjeEtWZG5PT8_17819434794703038450867105440731.jpg","createdAt":1781943537517,"id":"zmqm3699p"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"พื้นกระเบื้องตรงประตูทางเข้าห้องน้ำเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูพื้นกระเบื้อง","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/8gm1FQt6rw5iQNJUa0IvLRGWWTMq03XX_17819436791485306652327723881434.jpg","createdAt":1781943746869,"id":"zmqm3aqt1"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ยาแนวขอบกระเบื้องเคาน์เตอร์อ่างล้างหน้า","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/XYjNVFVmk2UWov25bL1Ea1J7JukHDnKU_17819437871063707471003554977350.jpg","createdAt":1781943827356,"id":"zmqm3cgws"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ยาแนวพื้นกระเบื้องห้องชักโครก","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/O1TpB68Cw3xNsyrW8IkBHX7d30MYaA1I_17819438929304460032070724476868.jpg","createdAt":1781943936932,"id":"zmqm3etgk"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"โฟเมก้าขอบตู้วางตู้เย็นบิน","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/nEf0YJy0XcJyVUbdxMvOA4AFBmN09cQg_17819439801134148114378068555137.jpg","createdAt":1781944054624,"id":"zmqm3hc9s"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ไฟในตู้วางชุดกาแฟไม่ติด","responsible":"ช่างไฟ","note":"เปลี่ยนสายไฟใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/irR4PkM55uNEybhP3ufqwinBWy2qD1D4_17819440835073269366833291086311.jpg","createdAt":1781944165129,"id":"zmqm3jpjd"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ผนังใต้ อาทเวิดร์สีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/iUL5vSozz3kIj8fotKt53uBYFl667sIb_17819441921273306488180745304430.jpg","createdAt":1781944253750,"id":"zmqm3llx2"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ฝ้าเพดานเหนือกระจกกั้นห้องน้ำเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูฝ้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/BT0xeny7tzBkMaZQ4GlKTGRvo1hlDJ8r_17819442693685513002174275226069.jpg","createdAt":1781944343270,"id":"zmqm3nizq"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ขอบกระจกยาวสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/SeZEIcD0wnrGHKTBCcqqh5GOQ8FllHdv_17819443605315662739569832030081.jpg","createdAt":1781944430531,"id":"zmqm3pebn"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"พนัสโต๊ะหัวเตียงใต้กระจกกลมด่าง","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/0Dje5mHYMMOGdVzq8xo1ied3rN4AgV0I_17819444476274756332476734452873.jpg","createdAt":1781944495365,"id":"zmqm3qscl"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ไม้ฉลุหัวเตียงนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/1WWdVOn56ELON2VklECDNJAztzuPEoOo_17819445386431946031034687344146.jpg","createdAt":1781944581041,"id":"zmqm3smgh"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ไม้ฉลุประตูบานเลื่อนห้องนอนมีรอยด่าง","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UkaajN7II39PFnAnn8zp4MUKw5ukNlgD_17819446362707668384617098244032.jpg","createdAt":1781944727586,"id":"zmqm3vrj6"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"โฟเมก้าขอบเตียงนอนอ้า","responsible":"ช่างเฟอร์นิเจอร์","note":"ติดแผ่นโฟเมก้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/ZJKpMq594vhxJylU8tava7NknzUoZQFQ_178194479779586882377478677085.jpg","createdAt":1781944847984,"id":"zmqm3ycfk"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ขอบบานประตูบานเลื่อนห้องนอนบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บขอบบานประตูบานเลื่อนห้องนอนใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/UDoTjfgNrbd2qgXwzYGJ1AUz85WCHzb9_17819448623795068228746446406872.jpg","createdAt":1781944955000,"id":"zmqm40n08"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ผนังห้องข้างประตูบานและห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Cq8nFjeat9aTSZjj777SdkjRhLK7XBD3_17819450081467320873419833293582.jpg","createdAt":1781945055913,"id":"zmqm42svd"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ขอบประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/EalaPpjhITnnsTNDLZDtkooYF3MklkJ7_17819450860631298707780748516383.jpg","createdAt":1781945141320,"id":"zmqm44mrs"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ผนังห้องข้างโซฟาเด็กสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/DJYMIFSCEwt4BHQLZFKMeU16lIx9NBRY_17819451597258985223295728000169.jpg","createdAt":1781945222910,"id":"zmqm46dq6"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ประตูบานเลื่อนห้องนอนไม้บิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บขอบประตูบานเลื่อนห้องนอนใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/hZoAVOgvSlr5vc1BDtmW0SSrxbfZ0SrV_17819452362901899762832337033529.jpg","createdAt":1781945310415,"id":"zmqm4898v"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ฝ้าเพดานตรงประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/69jkQ8aBIo7rAz7EPNMyeWyABvDu2BZX_17819453624073541740513385337033.jpg","createdAt":1781945402634,"id":"zmqm4a8ei"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ผนังห้องฝั่งทีวีสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/tjlgnemrIMohDxPaTyDR6wRwHUUwg37y_1781945412111177025222636685159.jpg","createdAt":1781945469612,"id":"zmqm4bo30"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ไม้ฉลุข้างทีวีมีรอยขีดและด่าง","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/B5Nyc5unzL6228MZd2ZF8oelQp9MOUA6_17819454798147012884649718023263.jpg","createdAt":1781945543389,"id":"zmqm4d90d"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3106","description":"ฝ้าเพดานเหนือทีวีสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/uMKtZ9SZyiPj38BHCNFMhTvUNmDSa7Qe_17819455578954189749894229136553.jpg","createdAt":1781945598808,"id":"zmqm4efrs"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"วงกบประตูทางเข้าด้านนอกปูนแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/TKQIAqyqYNtQkuhOukQ9Z7SLmrlshCKg_17820252303108840740173750332659.jpg","createdAt":1782025298179,"id":"zmqnfuo77"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ระหว่างวงกบประตูทางเข้าและตู้เสื้อผ้าเป็นร่องโว่","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดร่องวงกบประตูกับตู้เสื้อผ้า","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/uYFB6OwaT4b2LDStuszPTTe4mtJewvK3_17820253168043946897115100834515.jpg","createdAt":1782025461697,"id":"zmqnfy6dd"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ในตู้เสื้อผ้ามีตะปูโผ่ล","responsible":"ช่างเฟอร์นิเจอร์","note":"ดึงตะปูออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Z4HpRB3BqMaM0AN5YWGOxbcvwA6lZGN4_17820254787525200711786299856787.jpg","createdAt":1782025542194,"id":"zmqnfzwhe"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"พื้นกระเบื้องตรงทางเข้าห้องน้ำมีตัวล็อคประตูบานเลื่อนห้องน้ำ","responsible":"ช่างโรงแรม","note":"ดึงตัวล็อคประตูห้องน้ำออก","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/EM4mWGgzSezCbbaWy3s6D8HGZblnBInr_17820255890044768340970733691995.jpg","createdAt":1782025680213,"id":"zmqng2uz9"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ช่องไฟบนตู้วางชุดกาแฟเป็นรู","responsible":"ช่างไฟ","note":"อุดรูช่องไฟใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/y5s19m103X7LAlwfMaNgYN7jRE2qDhGb_17820257149589146661261664719633.jpg","createdAt":1782025787385,"id":"zmqng55o9"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ไม้ฉลุเหนือไม้วางกระเป๋าบิน","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บรอยบิ่นใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/ce0L6hDAWpOTqW4qtkro06OmzRSHYPCu_17820258379075905765363614990525.jpg","createdAt":1782025880129,"id":"zmqng758h"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ผนังห้องข้างประตูบานเลื่อนห้องนอนมีรอยขีด","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Vo8PZSENgKQR5giERRHis0PLx2xjF8bI_17820259073695171234969983241587.jpg","createdAt":1782025969547,"id":"zmqng928b"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ไม้ฉลุประตูบานเลื่อนห้องนอนมีรอยบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บรอยบิ่นใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/wU0TQ74E8R9hvEWRMcVrWTw3wEpAGpOh_17820259884057391809712581737758.jpg","createdAt":1782026034051,"id":"zmqngag03"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"พื้นปาเก้ตุงประตูบานเลื่อนห้องนอนเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูพื้นปาเก้","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/SC4I3sl300Ch2mbWYH7ewzKivv9MCUlm_17820260784999222237292877883246.jpg","createdAt":1782026122395,"id":"zmqngcc63"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"คิ้วบัวด้านล่างตรงประตูบานเลื่อนห้องนอนเป็นร่อง","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดร่องคิ้วบัวด้านล่างใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/0AAKfu7PPyQd7WFVPq1rHGMTJIkPvVSf_17820261567713643372638136033333.jpg","createdAt":1782026217290,"id":"zmqngede2"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ไม้ฉลุเหนือใต้โต๊ะทีวีหัวตะปูโผล่","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรอยหัวตะปูโผล่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/e0pR67EL1y1ciPGXJKYozheqhGgTMn5c_17820262745487517233536995815675.jpg","createdAt":1782026374996,"id":"zmqnghr2s"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"โฟเมก้าขาเตียงนอนเด็กบิน","responsible":"ช่างเฟอร์นิเจอร์","note":"ติดโฟเมก้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/eXVhQIwuPhCDCvN5yPJ6sYzJLAM1hLqB_1782026392352918935688442173006.jpg","createdAt":1782026466782,"id":"zmqngjpwe"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"ฝ้าเพดานเหนือเตียงนอนเด็กมีรอยแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"ทาสีฝ้าเพดานใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/BdJMDAfK9e8dvkpO2c2P5kK7dpeAkh6v_17820265402374274274391327682316.jpg","createdAt":1782026617294,"id":"zmqngmy1a"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"พื้นกระเบื้องข้างโต๊ะหัวเตียงยังไม่ได้ยาแนว","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวพื้นกระเบื้องใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/QIPMNeEArRRQ1zYux7lYMHeQUM5p67y5_17820266377493206089930284136558.jpg","createdAt":1782026757105,"id":"zmqngpxwx"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"พื้นกระเบื้องข้างกระจกกั้นห้องน้ำสีไม่เหมือนกัน","responsible":"ช่างเฟอร์นิเจอร์","note":"เปลี่ยนกระเบื้องใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/OkD0EoUw6rR8AHBaytpu743stHckRDdu_17820267766277501402301322444358.jpg","createdAt":1782026864226,"id":"zmqngs8ki"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"บ๊อบนักสู้ประตูทางเข้าเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูบล็อกร็อคโซ่ใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/3AGf4Rr0lgP04SZviyENLadCPnm4W6Gy_17820270171519013805801955802975.jpg","createdAt":1782027112672,"id":"zmqngxk9s"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3111","description":"บานพับประตูทางเข้าเป็นร่อง","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดร่องมันพับประตูทางเข้า","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/xOEs2X0vBkacH2qtDziD33RMlqvq9Ukd_17820271350948359323640904306979.jpg","createdAt":1782027202607,"id":"zmqngzhnz"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"บานประตูทางเข้าข้างตาแมวมีรอยบิ่น","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บรอยบิ่นข้างตาแมว","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/6wj78BMoTF3NlTtaaC6IamnwkUjEMjvg_17820272571032185374714586779277.jpg","createdAt":1782027309469,"id":"zmqnh1s4d"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ในตู้เสื้อผ้าเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูในตู้เสื้อผ้าใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/O11B3AWEtzmlUY305d5rxfMWQm8wHYMj_17820273585174567993252775057250.jpg","createdAt":1782027391196,"id":"zmqnh3j6k"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ผนังข้างคิ้วบัวด้านล่างตรงประตูทางเข้าปูนแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บรอยปูนแตกใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/OffpyswKKg05zcB8a2FgZ4RwGvWcazPS_17820274077104580314198463304161.jpg","createdAt":1782027459150,"id":"zmqnh4zm6"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"พื้นกระเบื้องตรงประตูทางเข้าห้องน้ำเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"เปิดรูปพื้นกระเบื้องใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/WnS4l7XeHhskMdmQa2Xr1wQ46190lNrH_1782027488350681942992862545942.jpg","createdAt":1782027531896,"id":"zmqnh6jqw"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ฝ้าเพดานมีรอยแตก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บรอยแตกฝ้าเพดานใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/voCh3otYG5iUiKvwTgdVyG6xbNbZTqM8_1782027567677483472401055739975.jpg","createdAt":1782027636459,"id":"zmqnh8sff"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ฟ้าผนังข้างไม้ฉลุเหนือม้าวางกระเป๋าสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/AF8X7VWDgYGP4i9V7qRlqmprQFqzxWmS_17820276613505014058134667790028.jpg","createdAt":1782027726922,"id":"zmqnhaq8a"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ข้างรูมเทอร์โมแอร์ยาแนวไม่เต็ม","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Jg9eSEDpPr1WbU5zdJ91fEKAAIzAeERd_17820277473797609410367678165257.jpg","createdAt":1782027799897,"id":"zmqnhcajd"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ผนังสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/46MxCkZ6PgpYvKvE7ji3uhfW6Np0eBC4_17820278733291138764314166940921.jpg","createdAt":1782027977812,"id":"zmqnhg3tg"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"แผ่นรองไม้ใต้เตียงนอนเปิด","responsible":"ช่างเฟอร์นิเจอร์","note":"","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/0WX0KtEkd1DHXxWEtg8BUcTMr7PEbg3x_17820281652056012471005294345711.jpg","createdAt":1782028413613,"id":"zmqnhpg31"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ขอบประตูบานเลื่อนห้องนอนสีถลอก","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บสีใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/01T7kV7eZMwn5XUYJ2NU9MB8A6ZnrkSA_17820284907207106419090181994192.jpg","createdAt":1782028723626,"id":"zmqnhw3ai"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"สายไฟตรงรางผ้าม่านโผ่ล","responsible":"ช่างไฟ","note":"เก็บสายไฟใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/qcGEmXVbMoPX8iDEyoDHhJHfeFVzctwZ_17820287366765872684809807376863.jpg","createdAt":1782028917593,"id":"zmqni08yh"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"พื้นปาเก้ข้างประตูซีวิวมีรอยขีดข่วน","responsible":"ช่างเฟอร์นิเจอร์","note":"เก็บรอยขีดข่วนใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/j3RoN3JwpC3c9imhrIYFDxBqcO5Sl0KJ_17820289368971692907307320940607.jpg","createdAt":1782028995273,"id":"zmqni1ww9"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ผนังข้างไม้ฉลุหลังทีวีเป็นรู","responsible":"ช่างเฟอร์นิเจอร์","note":"อุดรูผนังใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/Z6nCOocDSa3FHybxpZraQVTB3BKNHoTD_17820290096248359097031177407443.jpg","createdAt":1782029144753,"id":"zmqni548h"},{"hotelId":"sands","buildingId":"sandsC1","buildingName":"C1","floor":"1","room":"3110","description":"ยาแนวขอบกระเบื้องข้างโต๊ะหัวเตียง","responsible":"ช่างเฟอร์นิเจอร์","note":"ยาแนวใหม่","status":"open","priority":"medium","photo":"https://uploads.zite.com/orgid-589392/zite-uploads/vvfzpnhnhx/yGEgFXHnS5U8MKUS1FybMATL9ofCBYKU_17820291640331408196750999812996.jpg","createdAt":1782029221245,"id":"zmqni6r99"}];
+</script>
+<script>
+// ─── Vue App ─────────────────────────────────────────────────────────────────
+
+const { createApp } = Vue;
+const KEY = 'dms_khaolak_v4';
+
+// ── Supabase backend (multi-user). Falls back to localStorage-only/offline
+//    "demo" mode when config.js still holds the placeholders. ──
+const PHOTO_BUCKET = 'defect-photos';
+const SUPA = (() => {
+  const url = window.SUPABASE_URL, key = window.SUPABASE_ANON_KEY;
+  const ok = url && key && !/YOUR-PROJECT|YOUR-ANON/.test(url + key) && typeof supabase !== 'undefined';
+  try { return ok ? supabase.createClient(url, key) : null; } catch (e) { return null; }
+})();
+// dataURL -> Blob (for uploading the compressed JPEG to Storage)
+function dataUrlToBlob(dataUrl) {
+  const [head, b64] = dataUrl.split(',');
+  const mime = (head.match(/:(.*?);/) || [])[1] || 'image/jpeg';
+  const bin = atob(b64); const len = bin.length; const arr = new Uint8Array(len);
+  for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+function blankForm() {
+  return { floor:'', room:'', photo:null, photoDim:'', photoKB:0, description:'', responsible:'', note:'', status:'open', priority:'medium' };
+}
+function uid() { return Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3); }
+function cloneHotels(src) { return JSON.parse(JSON.stringify(src)); }
+
+createApp({
+  data() {
+    return {
+      cloud: !!SUPA,
+      session: null,
+      authReady: false,
+      authEmail: '', authPassword: '', authError: '', authBusy: false,
+      currentHotelId: 'sands',
+      currentBuildingId: 'sandsC1',
+      view: 'dashboard',
+      statusFilter: 'all',
+      drawerOpen: false,
+      modal: null, modalA: '', modalB: '',
+      confirm: null,
+      reportConfirm: false,
+      toastMsg: null,
+      dashSort: { building: false, priority: false, description: true },
+      viewportWidth: window.innerWidth,
+      hotels: cloneHotels(HOTELS),
+      defects: [],
+      descriptions: [...DESCRIPTIONS],
+      responsibles: [...RESPONSIBLES],
+      form: blankForm()
+    };
+  },
+
+  computed: {
+    isMobile() { return this.viewportWidth < 820; },
+    isAll() { return this.currentHotelId === 'all'; },
+
+    currentHotel() {
+      if (this.isAll) return null;
+      return this.hotels.find(h => h.id === this.currentHotelId) || null;
+    },
+    currentBuilding() {
+      const h = this.currentHotel;
+      if (!h) return null;
+      return h.buildings.find(b => b.id === this.currentBuildingId) || h.buildings[0] || null;
+    },
+    currentBuildingName() {
+      const cb = this.currentBuilding;
+      if (cb) return cb.name;
+      return this.isAll ? 'ทุกโรงแรม / All' : '— ยังไม่มีตึก';
+    },
+    showBuildingRow() {
+      return !this.isAll && this.currentHotel && this.currentHotel.buildings.length > 0;
+    },
+
+    sidebarStyle() {
+      const base = { position:'fixed', top:0, left:0, bottom:0, width:'262px', background:'#FCF6F2', borderRight:'1px solid #EFE6E0', display:'flex', flexDirection:'column', zIndex:60, overflowY:'auto', transition:'transform .26s ease' };
+      if (this.isMobile) return { ...base, transform: this.drawerOpen ? 'translateX(0)' : 'translateX(-100%)', boxShadow: this.drawerOpen ? '0 0 50px rgba(0,0,0,.22)' : 'none' };
+      return { ...base, transform:'translateX(0)' };
+    },
+    mainStyle() {
+      return this.isMobile ? { marginLeft:0, paddingTop:'56px', minHeight:'100vh' } : { marginLeft:'262px', minHeight:'100vh' };
+    },
+
+    pageTitle() {
+      const t = { defect:'บันทึก Defect', pending:'รายการ Defect', rooms:'ข้อมูลห้อง', dashboard:'Dashboard' };
+      return t[this.view] || '';
+    },
+
+    floorOptions() {
+      const cb = this.currentBuilding;
+      return cb ? cb.floors.map(f => ({ id:f.id, label:'ชั้น '+f.name })) : [];
+    },
+    roomOptions() {
+      const cb = this.currentBuilding;
+      if (!cb) return [];
+      const f = cb.floors.find(f => f.id === this.form.floor);
+      return f ? f.rooms : [];
+    },
+
+    hotelDefects() {
+      return this.isAll ? this.defects : this.defects.filter(d => d.hotelId === this.currentHotelId);
+    },
+    filteredDefects() {
+      const sf = this.statusFilter;
+      return sf === 'all' ? this.hotelDefects : this.hotelDefects.filter(d => d.status === sf);
+    },
+    filterChips() {
+      const base = { padding:'7px 14px', borderRadius:'999px', cursor:'pointer', fontSize:'13px', fontWeight:600, fontFamily:'inherit', whiteSpace:'nowrap' };
+      const active = { ...base, background:'#EC5E3D', color:'#fff', border:'1px solid transparent' };
+      const inactive = { ...base, background:'#fff', color:'#6B615B', border:'1px solid #E6DBD4' };
+      return [['all','ทั้งหมด / All'],['open','ค้าง / Open'],['fixed','แก้แล้ว / Fixed'],['verified','ตรวจผ่าน / Verified']].map(([v,l]) => ({ value:v, label:l, style: this.statusFilter===v ? active : inactive }));
+    },
+
+    statTotal()    { return this.hotelDefects.length; },
+    statOpen()     { return this.hotelDefects.filter(d=>d.status==='open').length; },
+    statFixed()    { return this.hotelDefects.filter(d=>d.status==='fixed').length; },
+    statVerified() { return this.hotelDefects.filter(d=>d.status==='verified').length; },
+
+    byGroupTitle() { return this.isAll ? 'Defect ตามโรงแรม / By hotel' : 'Defect ตามตึก / By building'; },
+    byBuilding() {
+      const raw = this.isAll
+        ? this.hotels.map(h => ({ name:h.name, count:this.defects.filter(d=>d.hotelId===h.id).length }))
+        : (this.currentHotel ? this.currentHotel.buildings.map(b => ({ name:'ตึก '+b.name, count:this.hotelDefects.filter(d=>d.buildingId===b.id).length })) : []);
+      const sorted = this.dashSort.building ? [...raw].sort((a,b)=>b.count-a.count) : raw;
+      const max = Math.max(1,...sorted.map(x=>x.count));
+      return sorted.map(x => ({ ...x, pct:Math.round(x.count/max*100) }));
+    },
+    byPriority() {
+      const meta = [['high','สูง / High','#D6452A'],['medium','กลาง / Medium','#B8821F'],['low','ต่ำ / Low','#5E8F88']];
+      const raw = meta.map(([k,l,c]) => ({ label:l, color:c, count:this.hotelDefects.filter(d=>d.priority===k).length }));
+      const sorted = this.dashSort.priority ? [...raw].sort((a,b)=>b.count-a.count) : raw;
+      const max = Math.max(1,...sorted.map(x=>x.count));
+      return sorted.map(x => ({ ...x, pct:Math.round(x.count/max*100) }));
+    },
+    byDescription() {
+      const counts = {};
+      this.hotelDefects.forEach(d => { const k=d.description||'—'; counts[k]=(counts[k]||0)+1; });
+      const raw = Object.keys(counts).map(k => ({ label:k, count:counts[k] }));
+      const sorted = this.dashSort.description ? [...raw].sort((a,b)=>b.count-a.count) : raw;
+      const max = Math.max(1,...sorted.map(x=>x.count));
+      return sorted.map(x => ({ ...x, pct:Math.round(x.count/max*100) }));
+    },
+
+    modalCfg() {
+      const m = this.modal;
+      if (!m) return {};
+      const cfgs = {
+        addBuilding:    { title:'เพิ่มตึก / Add Building',      labelA:'ชื่อตึก / Building name',         phA:'เช่น A4',             showB:false },
+        addFloor:       { title:'เพิ่มชั้น / Add Floor',         labelA:'ชื่อชั้น / Floor name',           phA:'เช่น 4',  showB:true, labelB:'เลขห้อง (ไม่บังคับ) / Rooms (optional)', phB:'เช่น 401-410 หรือ 401,402' },
+        addRooms:       { title:'เพิ่มห้อง / Add Rooms',         labelA:'เลขห้อง / Room numbers',          phA:'เช่น 401-410',        showB:false },
+        addDescription: { title:'เพิ่มคำอธิบาย / Add Description', labelA:'คำอธิบาย / Description',      phA:'พิมพ์คำอธิบาย...',   showB:false },
+        addResponsible: { title:'เพิ่มผู้รับผิดชอบ / Add Responsible', labelA:'ชื่อ / Name',              phA:'พิมพ์ชื่อ...',         showB:false },
+      };
+      return cfgs[m.type] || {};
+    }
+  },
+
+  methods: {
+    fmt(ts) {
+      const d = new Date(ts), p = n => String(n).padStart(2,'0');
+      return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+    },
+    statusLabel(s) { return {open:'ค้าง / Open',fixed:'แก้แล้ว / Fixed',verified:'ตรวจผ่าน / Verified'}[s]||s; },
+    statusColor(s) { return {open:'#D6452A',fixed:'#B8821F',verified:'#2F8857'}[s]||'#2C2724'; },
+    statusBtn(s) {
+      const m = {open:{c:'#D6452A',bg:'#FDEEE9'},fixed:{c:'#B8821F',bg:'#FBF1DC'},verified:{c:'#2F8857',bg:'#E2F2E8'}};
+      const x = m[s]||m.open;
+      return { fontSize:'12px', fontWeight:600, color:x.c, background:x.bg, border:'none', padding:'5px 11px', borderRadius:'999px', cursor:'pointer', whiteSpace:'nowrap' };
+    },
+    priorityLabel(p) { return {high:'สูง / High',medium:'กลาง / Medium',low:'ต่ำ / Low'}[p]||p; },
+    priorityBadge(p) {
+      const c = {high:'#D6452A',medium:'#B8821F',low:'#5E8F88'}[p]||'#9A8F88';
+      return { fontSize:'11px', fontWeight:600, color:c, border:'1px solid '+c, padding:'1px 8px', borderRadius:'999px' };
+    },
+    defectLocStr(d) {
+      const hotelName = (this.hotels.find(h=>h.id===d.hotelId)||{}).name||'';
+      return (this.isAll ? hotelName+' · ' : '')+'ตึก '+(d.buildingName||'')+' · ชั้น '+(d.floor||'')+' · ห้อง '+(d.room||'');
+    },
+    navStyle(v) {
+      const base = { display:'flex', alignItems:'center', gap:'11px', padding:'11px 13px', borderRadius:'11px', border:'none', cursor:'pointer', fontSize:'14.5px', fontWeight:600, width:'100%', textAlign:'left', fontFamily:'inherit' };
+      return this.view===v
+        ? { ...base, background:'linear-gradient(135deg,#F3795B,#EC5E3D)', color:'#fff', boxShadow:'0 6px 15px rgba(236,94,61,.30)' }
+        : { ...base, background:'transparent', color:'#3A332F' };
+    },
+    tabStyle(active) {
+      const base = { padding:'8px 16px', borderRadius:'10px', cursor:'pointer', fontSize:'13.5px', fontWeight:600, fontFamily:'inherit', whiteSpace:'nowrap' };
+      return active
+        ? { ...base, border:'1px solid transparent', background:'linear-gradient(135deg,#F3795B,#EC5E3D)', color:'#fff', boxShadow:'0 5px 13px rgba(236,94,61,.28)' }
+        : { ...base, border:'1px solid #E6DBD4', background:'#fff', color:'#6B615B' };
+    },
+    sortBtnStyle(active) {
+      return { display:'flex', alignItems:'center', gap:'5px', fontSize:'11.5px', fontWeight:600, padding:'5px 10px', borderRadius:'8px', cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', border: active ? '1px solid transparent' : '1px solid #E6DBD4', background: active ? '#EC5E3D' : '#fff', color: active ? '#fff' : '#6B615B' };
+    },
+
+    setView(v) { this.view = v; this.drawerOpen = false; this.persist(); },
+    setHotelId(id) {
+      if (id === 'all') { this.currentHotelId = 'all'; this.currentBuildingId = ''; }
+      else {
+        this.currentHotelId = id;
+        const h = this.hotels.find(x=>x.id===id);
+        this.currentBuildingId = h && h.buildings[0] ? h.buildings[0].id : '';
+      }
+      this.form.floor = ''; this.form.room = '';
+      this.persist();
+    },
+    setBuildingId(id) { this.currentBuildingId = id; this.form.floor=''; this.form.room=''; this.persist(); },
+
+    onPhoto(e) {
+      const file = e.target.files?.[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          const max=1280; let w=img.width, h=img.height;
+          if (w>max||h>max) { const sc=Math.min(max/w,max/h); w=Math.round(w*sc); h=Math.round(h*sc); }
+          const c=document.createElement('canvas'); c.width=w; c.height=h;
+          const ctx=c.getContext('2d');
+          ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+          ctx.drawImage(img,0,0,w,h);
+          const data=c.toDataURL('image/jpeg',0.75);
+          this.form.photo=data; this.form.photoDim=`${w}×${h}`; this.form.photoKB=Math.round((data.length*0.75)/1024);
+        };
+        img.src=ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    },
+
+    async saveDefect() {
+      const f = this.form, cb = this.currentBuilding;
+      if (!cb) { this.toast(this.isAll ? 'เลือกโรงแรมก่อน / Select a hotel first' : 'กรุณาเพิ่มตึกก่อน / Add a building first'); return; }
+      const miss = [];
+      if (!f.floor) miss.push('ชั้น'); if (!f.room) miss.push('ห้อง');
+      if (!f.photo) miss.push('รูป'); if (!f.description) miss.push('คำอธิบาย');
+      if (!f.responsible) miss.push('ผู้รับผิดชอบ');
+      if (miss.length) { this.toast('กรุณากรอก: '+miss.join(', ')); return; }
+      if (this._saving) return;
+      const floor = cb.floors.find(x=>x.id===f.floor);
+      const d = { id:uid(), hotelId:this.currentHotelId, buildingId:cb.id, buildingName:cb.name, floor:floor?floor.name:'', room:f.room, photo:f.photo, description:f.description, responsible:f.responsible, note:f.note, status:f.status, priority:f.priority, createdAt:Date.now() };
+
+      if (SUPA && this.session) {
+        this._saving = true;
+        this.toast('กำลังบันทึก / Saving…');
+        try {
+          if (d.photo && d.photo.startsWith('data:')) d.photo = await this.uploadPhoto(d.photo, d.id);
+          const { error } = await SUPA.from('defects').insert({ id:d.id, data:d, created_at:d.createdAt });
+          if (error) throw error;
+        } catch (e) {
+          this._saving = false;
+          this.toast('บันทึกไม่สำเร็จ / Save failed: ' + (e.message || e));
+          return;
+        }
+        this._saving = false;
+      }
+
+      this.defects.unshift(d);
+      this.form = blankForm();
+      this.persist();
+      this.toast('บันทึก Defect สำเร็จ / Saved');
+    },
+
+    async uploadPhoto(dataUrl, id) {
+      const blob = dataUrlToBlob(dataUrl);
+      const path = `${id}-${Date.now()}.jpg`;
+      const { error } = await SUPA.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:true });
+      if (error) throw error;
+      return SUPA.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+    },
+    cancelDefect() { this.form = blankForm(); this.toast('ล้างฟอร์มแล้ว / Form cleared'); },
+
+    askCycle(d) {
+      const order=['open','fixed','verified'];
+      const next = order[(order.indexOf(d.status)+1)%3];
+      this.confirm = { id:d.id, from:d.status, to:next };
+    },
+    async doCycle() {
+      const c = this.confirm; if (!c) return;
+      const idx = this.defects.findIndex(d=>d.id===c.id);
+      if (idx<0) { this.confirm = null; return; }
+      const d = { ...this.defects[idx], status:c.to, statusChangedAt:Date.now() };
+      this.confirm = null;
+      if (SUPA && this.session) {
+        try {
+          const { error } = await SUPA.from('defects').update({ data:d }).eq('id', d.id);
+          if (error) throw error;
+        } catch (e) { this.toast('อัปเดตไม่สำเร็จ / Update failed: ' + (e.message || e)); return; }
+      }
+      this.defects.splice(idx,1,d);
+      this.persist();
+      this.toast('เปลี่ยนสถานะแล้ว / Status updated');
+    },
+
+    parseRooms(str) {
+      const out=[];
+      (str||'').split(',').forEach(part => {
+        part=part.trim(); if(!part) return;
+        const m=part.match(/^(\d+)\s*-\s*(\d+)$/);
+        if(m){const a=+m[1],b=+m[2],pad=m[1].length; if(b>=a&&b-a<500) for(let i=a;i<=b;i++) out.push(String(i).padStart(pad,'0'));}
+        else out.push(part);
+      });
+      return out;
+    },
+    mutHotel(fn) {
+      const idx = this.hotels.findIndex(h=>h.id===this.currentHotelId);
+      if (idx<0) return;
+      this.hotels.splice(idx,1,fn(this.hotels[idx]));
+      this.persist();
+    },
+    addBuilding(name) {
+      if (!name.trim()) return;
+      this.mutHotel(h => ({ ...h, buildings:[...h.buildings,{id:uid(),name:name.trim(),floors:[]}] }));
+    },
+    addFloor(bid,name,roomsStr) {
+      if (!name.trim()) return;
+      this.mutHotel(h => ({ ...h, buildings:h.buildings.map(b=>b.id===bid ? { ...b, floors:[...b.floors,{id:uid(),name:name.trim(),rooms:this.parseRooms(roomsStr)}] } : b) }));
+    },
+    addRooms(bid,fid,roomsStr) {
+      const add=this.parseRooms(roomsStr); if(!add.length) return;
+      this.mutHotel(h => ({ ...h, buildings:h.buildings.map(b=>b.id===bid ? { ...b, floors:b.floors.map(f=>f.id===fid ? { ...f, rooms:[...new Set([...f.rooms,...add])] } : f) } : b) }));
+    },
+    deleteBuilding(id) {
+      const hIdx = this.hotels.findIndex(h=>h.id===this.currentHotelId); if(hIdx<0) return;
+      const h = { ...this.hotels[hIdx], buildings:this.hotels[hIdx].buildings.filter(b=>b.id!==id) };
+      this.hotels.splice(hIdx,1,h);
+      if (this.currentBuildingId===id) this.currentBuildingId = h.buildings[0]?.id||'';
+      this.persist();
+    },
+    deleteFloor(bid,fid) {
+      this.mutHotel(h => ({ ...h, buildings:h.buildings.map(b=>b.id===bid ? { ...b, floors:b.floors.filter(f=>f.id!==fid) } : b) }));
+    },
+    deleteRoom(bid,fid,room) {
+      this.mutHotel(h => ({ ...h, buildings:h.buildings.map(b=>b.id===bid ? { ...b, floors:b.floors.map(f=>f.id===fid ? { ...f, rooms:f.rooms.filter(r=>r!==room) } : f) } : b) }));
+    },
+
+    openModal(type,bid,fid) { this.modal={type,bid:bid||null,fid:fid||null}; this.modalA=''; this.modalB=''; },
+    saveModal() {
+      const m=this.modal; if(!m) return;
+      if (m.type==='addBuilding') this.addBuilding(this.modalA);
+      else if (m.type==='addFloor') this.addFloor(m.bid,this.modalA,this.modalB);
+      else if (m.type==='addRooms') this.addRooms(m.bid,m.fid,this.modalA);
+      else if (m.type==='addDescription' && this.modalA.trim()) {
+        this.descriptions.push(this.modalA.trim()); this.form.description=this.modalA.trim(); this.persist();
+      }
+      else if (m.type==='addResponsible' && this.modalA.trim()) {
+        this.responsibles.push(this.modalA.trim()); this.form.responsible=this.modalA.trim(); this.persist();
+      }
+      this.modal=null;
+    },
+
+    exportExcel(forceAll=false) {
+      const hName={}; this.hotels.forEach(h=>hName[h.id]=h.name);
+      const all = forceAll||this.isAll;
+      const list = all ? this.defects : this.defects.filter(d=>d.hotelId===this.currentHotelId);
+      const sL={open:'ค้าง / Open',fixed:'แก้แล้ว / Fixed',verified:'ตรวจผ่าน / Verified'};
+      const pL={low:'ต่ำ / Low',medium:'กลาง / Medium',high:'สูง / High'};
+      const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const hdrs=['โรงแรม','ตึก','ชั้น','ห้อง','คำอธิบาย','ผู้รับผิดชอบ','สถานะ','ความสำคัญ','หมายเหตุ','วันที่','เปลี่ยนสถานะเมื่อ'];
+      let html='<table border="1"><thead><tr>'+hdrs.map(h=>'<th style="background:#FCF6F2;font-weight:bold">'+esc(h)+'</th>').join('')+'</tr></thead><tbody>';
+      list.forEach(d=>{
+        const cells=[hName[d.hotelId]||'',d.buildingName||'',d.floor||'',d.room||'',d.description||'',d.responsible||'',sL[d.status]||d.status,pL[d.priority]||d.priority,d.note||'',this.fmt(d.createdAt),d.statusChangedAt?this.fmt(d.statusChangedAt):''];
+        html+='<tr>'+cells.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>';
+      });
+      html+='</tbody></table>';
+      const full='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>'+html+'</body></html>';
+      const blob=new Blob(['﻿'+full],{type:'application/vnd.ms-excel;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url;
+      a.download='DMS_'+(all?'AllHotels':(this.currentHotel?this.currentHotel.name.replace(/\s+/g,'_'):'export'))+'_'+new Date().toISOString().slice(0,10)+'.xls';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),1500);
+      this.toast(list.length?`ส่งออก Excel แล้ว / Exported ${list.length} รายการ`:'ไม่มีรายการให้ส่งออก / Nothing to export');
+    },
+    doReport() { this.reportConfirm=false; this.exportExcel(true); },
+
+    goStat(s) { this.statusFilter=s; this.view='pending'; this.persist(); },
+
+    toast(msg) {
+      this.toastMsg=msg; clearTimeout(this._t);
+      this._t=setTimeout(()=>{ this.toastMsg=null; },2600);
+    },
+
+    persist() {
+      try {
+        localStorage.setItem(KEY, JSON.stringify({
+          hotels:this.hotels, defects:this.defects,
+          descriptions:this.descriptions, responsibles:this.responsibles,
+          currentHotelId:this.currentHotelId, currentBuildingId:this.currentBuildingId,
+          view:this.view, ver:2
+        }));
+      } catch(e) {}
+      this.syncConfig();
+    },
+
+    // Push shared config (hotels/buildings/rooms + catalogs) to the cloud.
+    // Debounced so a burst of edits collapses into one write.
+    syncConfig() {
+      if (!SUPA || !this.session) return;
+      clearTimeout(this._cfgT);
+      this._cfgT = setTimeout(async () => {
+        try {
+          await SUPA.from('app_config').upsert({
+            id: 1,
+            hotels: this.hotels,
+            descriptions: this.descriptions,
+            responsibles: this.responsibles,
+            updated_at: new Date().toISOString()
+          });
+        } catch (e) { /* keep local copy; will resync on next edit */ }
+      }, 600);
+    },
+
+    seedZite() {
+      if (typeof ZITE_DEFECTS === 'undefined') return;
+      const existing = new Set(this.defects.map(d=>d.id));
+      const toAdd = ZITE_DEFECTS.filter(d=>!existing.has(d.id)).map(d => {
+        const norm = this.descriptions.find(c=>c===d.description||c.startsWith(d.description+' | '))||d.description;
+        return { ...d, description:norm };
+      });
+      if (toAdd.length) { this.defects.push(...toAdd); this.persist(); }
+    },
+
+    // ── Cloud / auth ──────────────────────────────────────────────────────
+    async signIn() {
+      this.authError = ''; this.authBusy = true;
+      try {
+        const { error } = await SUPA.auth.signInWithPassword({ email:this.authEmail.trim(), password:this.authPassword });
+        if (error) throw error;
+        this.authPassword = '';
+      } catch (e) {
+        this.authError = (e.message || 'Sign in failed');
+      } finally { this.authBusy = false; }
+    },
+    async signOut() {
+      try { await SUPA.auth.signOut(); } catch (e) {}
+      this.session = null; this.defects = [];
+    },
+    async afterLogin() {
+      await this.seedCloudIfEmpty();
+      await this.loadFromCloud();
+      this.subscribeRealtime();
+    },
+    async loadFromCloud() {
+      try {
+        const { data:cfg } = await SUPA.from('app_config').select('hotels,descriptions,responsibles').eq('id',1).maybeSingle();
+        if (cfg) {
+          if (Array.isArray(cfg.hotels) && cfg.hotels.length)             this.hotels = cfg.hotels;
+          if (Array.isArray(cfg.descriptions) && cfg.descriptions.length) this.descriptions = cfg.descriptions;
+          if (Array.isArray(cfg.responsibles) && cfg.responsibles.length) this.responsibles = cfg.responsibles;
+        }
+      } catch (e) {}
+      try {
+        const { data:rows, error } = await SUPA.from('defects').select('data').order('created_at',{ ascending:false });
+        if (error) throw error;
+        this.defects = (rows || []).map(r => r.data);
+      } catch (e) { this.toast('โหลดข้อมูลไม่สำเร็จ / Load failed: ' + (e.message || e)); }
+      if (this.currentHotelId !== 'all' && !this.hotels.find(h=>h.id===this.currentHotelId))
+        this.currentHotelId = this.hotels[0] ? this.hotels[0].id : 'all';
+    },
+    async seedCloudIfEmpty() {
+      // First-ever login populates the shared DB from the bundled defaults (idempotent via PK).
+      try {
+        const { data:cfg } = await SUPA.from('app_config').select('id').eq('id',1).maybeSingle();
+        if (!cfg) await SUPA.from('app_config').insert({ id:1, hotels:this.hotels, descriptions:this.descriptions, responsibles:this.responsibles });
+        const { count } = await SUPA.from('defects').select('id',{ count:'exact', head:true });
+        if ((count || 0) === 0 && typeof ZITE_DEFECTS !== 'undefined' && ZITE_DEFECTS.length) {
+          const rows = ZITE_DEFECTS.map(d => {
+            const norm = this.descriptions.find(c=>c===d.description||c.startsWith(d.description+' | ')) || d.description;
+            const x = { ...d, description:norm };
+            return { id:x.id, data:x, created_at:x.createdAt || 0 };
+          });
+          await SUPA.from('defects').upsert(rows, { onConflict:'id' });
+        }
+      } catch (e) { /* non-fatal; loadFromCloud still runs */ }
+    },
+    subscribeRealtime() {
+      if (!SUPA || this._rt) return;
+      this._rt = SUPA.channel('defects-rt')
+        .on('postgres_changes', { event:'*', schema:'public', table:'defects' }, () => {
+          clearTimeout(this._rtT);
+          this._rtT = setTimeout(() => this.loadFromCloud(), 400);
+        })
+        .subscribe();
+    }
+  },
+
+  async mounted() {
+    this._resize = () => { this.viewportWidth = window.innerWidth; };
+    window.addEventListener('resize', this._resize);
+
+    if (SUPA) {
+      // Cloud mode: login-gated, shared multi-user data.
+      SUPA.auth.onAuthStateChange(async (_evt, sess) => {
+        const wasLoggedIn = !!this.session;
+        this.session = sess;
+        this.authReady = true;
+        if (sess && !wasLoggedIn) await this.afterLogin();
+        else if (!sess) this.defects = [];
+      });
+      return;
+    }
+
+    // Offline/demo mode: localStorage only (config.js still has placeholders).
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s.hotels)            this.hotels = s.hotels;
+        if (s.descriptions)      this.descriptions = s.descriptions;
+        if (s.responsibles)      this.responsibles = s.responsibles;
+        if (s.defects)           this.defects = s.defects;
+        if (s.currentHotelId)    this.currentHotelId = s.currentHotelId;
+        if (s.currentBuildingId) this.currentBuildingId = s.currentBuildingId;
+        if (s.view)              this.view = s.view;
+        if (s.ver !== 2) this.seedZite();
+      } else {
+        this.seedZite();
+        this.persist();
+      }
+    } catch(e) {
+      this.seedZite();
+      this.persist();
+    }
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('resize', this._resize);
+    clearTimeout(this._t);
+    clearTimeout(this._cfgT);
+    clearTimeout(this._rtT);
+    if (this._rt && SUPA) { try { SUPA.removeChannel(this._rt); } catch (e) {} }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
