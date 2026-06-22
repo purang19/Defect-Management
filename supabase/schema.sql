@@ -56,6 +56,9 @@ create policy defect_photos_read on storage.objects
 create policy defect_photos_upload on storage.objects
   for insert to authenticated with check (bucket_id = 'defect-photos');
 
+-- 5. Enable realtime (live cross-device sync) on the defects table.
+alter publication supabase_realtime add table public.defects;
+
 -- ============================================================================
 --  After running this:
 --   • Authentication → Users → "Add user" to create each team login

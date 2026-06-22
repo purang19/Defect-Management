@@ -973,42 +973,67 @@ createApp({
       this.session = null; this.defects = [];
     },
     async afterLogin() {
-      await this.seedCloudIfEmpty();
-      await this.loadFromCloud();
-      this.subscribeRealtime();
+      if (this._loading) return;
+      this._loading = true;
+      try {
+        await this.seedCloudIfEmpty();
+        await this.loadFromCloud();
+        this.subscribeRealtime();
+      } finally { this._loading = false; }
+    },
+    // Throttled reload of defects (used on tab focus / realtime).
+    refreshDefects() {
+      const now = Date.now();
+      if (this._lastFetch && now - this._lastFetch < 5000) return;
+      this._lastFetch = now;
+      this.loadFromCloud();
     },
     async loadFromCloud() {
+      this._lastFetch = Date.now();
       try {
-        const { data:cfg } = await SUPA.from('app_config').select('hotels,descriptions,responsibles').eq('id',1).maybeSingle();
+        const { data:cfg, error:cfgErr } = await SUPA.from('app_config').select('hotels,descriptions,responsibles').eq('id',1).maybeSingle();
+        if (cfgErr) throw cfgErr;
         if (cfg) {
           if (Array.isArray(cfg.hotels) && cfg.hotels.length)             this.hotels = cfg.hotels;
           if (Array.isArray(cfg.descriptions) && cfg.descriptions.length) this.descriptions = cfg.descriptions;
           if (Array.isArray(cfg.responsibles) && cfg.responsibles.length) this.responsibles = cfg.responsibles;
         }
-      } catch (e) {}
+      } catch (e) { console.error('loadFromCloud(config) failed:', e); }
       try {
         const { data:rows, error } = await SUPA.from('defects').select('data').order('created_at',{ ascending:false });
         if (error) throw error;
-        this.defects = (rows || []).map(r => r.data);
-      } catch (e) { this.toast('โหลดข้อมูลไม่สำเร็จ / Load failed: ' + (e.message || e)); }
+        this.defects = (rows || []).map(r => r.data).filter(Boolean);
+      } catch (e) {
+        console.error('loadFromCloud(defects) failed:', e);
+        this.toast('โหลดข้อมูลไม่สำเร็จ / Load failed: ' + (e.message || e));
+      }
       if (this.currentHotelId !== 'all' && !this.hotels.find(h=>h.id===this.currentHotelId))
         this.currentHotelId = this.hotels[0] ? this.hotels[0].id : 'all';
     },
     async seedCloudIfEmpty() {
       // First-ever login populates the shared DB from the bundled defaults (idempotent via PK).
       try {
-        const { data:cfg } = await SUPA.from('app_config').select('id').eq('id',1).maybeSingle();
-        if (!cfg) await SUPA.from('app_config').insert({ id:1, hotels:this.hotels, descriptions:this.descriptions, responsibles:this.responsibles });
-        const { count } = await SUPA.from('defects').select('id',{ count:'exact', head:true });
+        const { data:cfg, error:cfgErr } = await SUPA.from('app_config').select('id').eq('id',1).maybeSingle();
+        if (cfgErr) throw cfgErr;
+        if (!cfg) {
+          const { error } = await SUPA.from('app_config').insert({ id:1, hotels:this.hotels, descriptions:this.descriptions, responsibles:this.responsibles });
+          if (error) throw error;
+        }
+        const { count, error:cntErr } = await SUPA.from('defects').select('id',{ count:'exact', head:true });
+        if (cntErr) throw cntErr;
         if ((count || 0) === 0 && typeof ZITE_DEFECTS !== 'undefined' && ZITE_DEFECTS.length) {
           const rows = ZITE_DEFECTS.map(d => {
             const norm = this.descriptions.find(c=>c===d.description||c.startsWith(d.description+' | ')) || d.description;
             const x = { ...d, description:norm };
             return { id:x.id, data:x, created_at:x.createdAt || 0 };
           });
-          await SUPA.from('defects').upsert(rows, { onConflict:'id' });
+          const { error } = await SUPA.from('defects').upsert(rows, { onConflict:'id' });
+          if (error) throw error;
         }
-      } catch (e) { /* non-fatal; loadFromCloud still runs */ }
+      } catch (e) {
+        console.error('seedCloudIfEmpty failed:', e);
+        this.toast('ตั้งค่าข้อมูลเริ่มต้นไม่สำเร็จ / Seed failed: ' + (e.message || e));
+      }
     },
     subscribeRealtime() {
       if (!SUPA || this._rt) return;
@@ -1018,6 +1043,7 @@ createApp({
           this._rtT = setTimeout(() => this.loadFromCloud(), 400);
         })
         .subscribe();
+      this._lastFetch = Date.now();
     }
   },
 
@@ -1027,13 +1053,23 @@ createApp({
 
     if (SUPA) {
       // Cloud mode: login-gated, shared multi-user data.
-      SUPA.auth.onAuthStateChange(async (_evt, sess) => {
+      // NOTE: do NOT await Supabase queries directly inside onAuthStateChange —
+      // the auth client holds a lock during the callback and awaiting other
+      // calls there can deadlock. Defer afterLogin() onto a fresh task instead.
+      SUPA.auth.onAuthStateChange((_evt, sess) => {
         const wasLoggedIn = !!this.session;
         this.session = sess;
         this.authReady = true;
-        if (sess && !wasLoggedIn) await this.afterLogin();
+        if (sess && !wasLoggedIn) setTimeout(() => this.afterLogin(), 0);
         else if (!sess) this.defects = [];
       });
+      // Refetch when the user returns to the tab (covers missed realtime /
+      // blocked WebSockets, e.g. mobile tracking prevention).
+      this._onVisible = () => {
+        if (document.visibilityState === 'visible' && this.session) this.refreshDefects();
+      };
+      document.addEventListener('visibilitychange', this._onVisible);
+      window.addEventListener('focus', this._onVisible);
       return;
     }
 
@@ -1062,6 +1098,10 @@ createApp({
 
   beforeUnmount() {
     window.removeEventListener('resize', this._resize);
+    if (this._onVisible) {
+      document.removeEventListener('visibilitychange', this._onVisible);
+      window.removeEventListener('focus', this._onVisible);
+    }
     clearTimeout(this._t);
     clearTimeout(this._cfgT);
     clearTimeout(this._rtT);
