@@ -637,7 +637,11 @@ createApp({
     },
 
     hotelDefects() {
-      return this.isAll ? this.defects : this.defects.filter(d => d.hotelId === this.currentHotelId);
+      if (this.isAll) return this.defects;
+      return this.defects.filter(d =>
+        d.hotelId === this.currentHotelId &&
+        (!this.currentBuildingId || d.buildingId === this.currentBuildingId)
+      );
     },
     filteredDefects() {
       const sf = this.statusFilter;
@@ -659,7 +663,7 @@ createApp({
     byBuilding() {
       const raw = this.isAll
         ? this.hotels.map(h => ({ name:h.name, count:this.defects.filter(d=>d.hotelId===h.id).length }))
-        : (this.currentHotel ? this.currentHotel.buildings.map(b => ({ name:'ตึก '+b.name, count:this.hotelDefects.filter(d=>d.buildingId===b.id).length })) : []);
+        : (this.currentBuilding ? [{ name:'ตึก '+this.currentBuilding.name, count:this.hotelDefects.length }] : []);
       const sorted = this.dashSort.building ? [...raw].sort((a,b)=>b.count-a.count) : raw;
       const max = Math.max(1,...sorted.map(x=>x.count));
       return sorted.map(x => ({ ...x, pct:Math.round(x.count/max*100) }));
