@@ -411,6 +411,29 @@ textarea{resize:vertical}
           </div>
         </div>
 
+        <!-- By responsible -->
+        <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff;margin-top:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <div style="font-size:14px;font-weight:700">Defect ตามผู้รับผิดชอบ / By responsible</div>
+            <button @click="dashSort.responsible=!dashSort.responsible" :style="sortBtnStyle(dashSort.responsible)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h12"/><path d="M3 12h8"/><path d="M3 18h4"/><path d="M18 8V20"/><path d="M15 17l3 3 3-3"/></svg>
+              จำนวน
+            </button>
+          </div>
+          <div v-if="byResponsible.length===0" style="font-size:13px;color:#B7ACA4;padding:6px 0">ยังไม่มีข้อมูล / No data yet</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div v-for="row in byResponsible" :key="row.label">
+              <div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;margin-bottom:5px">
+                <span style="font-weight:600;color:#3A332F">{{ row.label }}</span>
+                <span style="color:#9A8F88;flex:none">{{ row.done }} / {{ row.total }} เสร็จ</span>
+              </div>
+              <div style="height:8px;background:#F4EEE9;border-radius:99px;overflow:hidden">
+                <div :style="{height:'100%',width:row.pct+'%',background:'linear-gradient(90deg,#7BAE92,#4F9970)',borderRadius:'99px'}"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- By description -->
         <div style="border:1px solid #EFE6E0;border-radius:14px;padding:18px 20px;background:#fff;margin-top:16px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
@@ -579,7 +602,7 @@ createApp({
       confirm: null,
       reportConfirm: false,
       toastMsg: null,
-      dashSort: { building: false, priority: false, description: true },
+      dashSort: { building: false, priority: false, description: true, responsible: true },
       viewportWidth: window.innerWidth,
       hotels: cloneHotels(HOTELS),
       defects: [],
@@ -682,6 +705,19 @@ createApp({
       const sorted = this.dashSort.description ? [...raw].sort((a,b)=>b.count-a.count) : raw;
       const max = Math.max(1,...sorted.map(x=>x.count));
       return sorted.map(x => ({ ...x, pct:Math.round(x.count/max*100) }));
+    },
+    byResponsible() {
+      const m = {};
+      this.hotelDefects.forEach(d => {
+        if (d.status !== 'open' && d.status !== 'fixed') return; // count only Open + Fixed
+        const k = d.responsible || '—';
+        if (!m[k]) m[k] = { total:0, done:0 };
+        m[k].total++;
+        if (d.status === 'fixed') m[k].done++;
+      });
+      const raw = Object.keys(m).map(k => ({ label:k, total:m[k].total, done:m[k].done }));
+      const sorted = this.dashSort.responsible ? [...raw].sort((a,b)=>b.total-a.total) : raw;
+      return sorted.map(x => ({ ...x, pct: Math.round(x.done / (x.total||1) * 100) }));
     },
 
     modalCfg() {
