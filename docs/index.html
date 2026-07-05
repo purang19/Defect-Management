@@ -325,7 +325,7 @@ textarea{resize:vertical}
                   </div>
                 </div>
                 <div style="display:flex;gap:7px;flex-wrap:wrap">
-                  <span v-for="r in f.rooms" :key="r" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#3A332F;background:#F7F1EC;border:1px solid #EFE6E0;padding:4px 6px 4px 11px;border-radius:8px">
+                  <span v-for="r in f.rooms.slice().sort(natCmp)" :key="r" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:#3A332F;background:#F7F1EC;border:1px solid #EFE6E0;padding:4px 6px 4px 11px;border-radius:8px">
                     {{ r }}
                     <button @click="deleteRoom(b.id,f.id,r)" style="background:none;border:none;color:#BBAEA5;cursor:pointer;padding:0;display:flex;line-height:1">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
@@ -627,13 +627,13 @@ createApp({
 
     floorOptions() {
       const cb = this.currentBuilding;
-      return cb ? cb.floors.map(f => ({ id:f.id, label:'ชั้น '+f.name })) : [];
+      return cb ? cb.floors.slice().sort((a,b)=>this.natCmp(a.name,b.name)).map(f => ({ id:f.id, label:'ชั้น '+f.name })) : [];
     },
     roomOptions() {
       const cb = this.currentBuilding;
       if (!cb) return [];
       const f = cb.floors.find(f => f.id === this.form.floor);
-      return f ? f.rooms : [];
+      return f ? f.rooms.slice().sort(this.natCmp) : [];
     },
 
     hotelDefects() {
@@ -828,6 +828,9 @@ createApp({
       this.toast('เปลี่ยนสถานะแล้ว / Status updated');
     },
 
+    natCmp(a,b) {
+      return String(a).localeCompare(String(b), undefined, { numeric:true, sensitivity:'base' });
+    },
     parseRooms(str) {
       const out=[];
       (str||'').split(',').forEach(part => {
