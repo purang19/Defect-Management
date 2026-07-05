@@ -254,6 +254,10 @@ textarea{resize:vertical}
           <button v-for="chip in filterChips" :key="chip.value" @click="statusFilter=chip.value" :style="chip.style">{{ chip.label }}</button>
         </div>
 
+        <div style="margin-bottom:20px">
+          <input v-model="roomSearch" type="search" inputmode="numeric" placeholder="ค้นหาเลขห้อง / Search room no." style="width:100%;max-width:280px;padding:10px 13px;border:1px solid #E6DBD4;border-radius:10px;font-size:14px;color:#2C2724;outline:none;background:#fff">
+        </div>
+
         <div v-if="filteredDefects.length===0" style="text-align:center;padding:60px 20px;color:#A99E96;border:1.5px dashed #EFE0D8;border-radius:14px">
           <div style="font-size:15px;font-weight:600;margin-bottom:4px">ไม่มีรายการ / No defects</div>
           <div style="font-size:13px">ยังไม่มี Defect ในตัวกรองนี้</div>
@@ -597,6 +601,7 @@ createApp({
       currentBuildingId: 'sandsC1',
       view: 'dashboard',
       statusFilter: 'all',
+      roomSearch: '',
       drawerOpen: false,
       modal: null, modalA: '', modalB: '',
       confirm: null,
@@ -668,7 +673,10 @@ createApp({
     },
     filteredDefects() {
       const sf = this.statusFilter;
-      return sf === 'all' ? this.hotelDefects : this.hotelDefects.filter(d => d.status === sf);
+      const q = this.roomSearch.trim().toLowerCase();
+      let list = sf === 'all' ? this.hotelDefects : this.hotelDefects.filter(d => d.status === sf);
+      if (q) list = list.filter(d => String(d.room || '').toLowerCase().includes(q));
+      return list.slice().sort((a,b) => this.natCmp(a.room, b.room) || (b.createdAt - a.createdAt));
     },
     filterChips() {
       const base = { padding:'7px 14px', borderRadius:'999px', cursor:'pointer', fontSize:'13px', fontWeight:600, fontFamily:'inherit', whiteSpace:'nowrap' };
